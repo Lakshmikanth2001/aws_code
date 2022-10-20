@@ -92,9 +92,8 @@ def get_device_control_bits(device_id: str):
                     new_timer_states += "0"
 
             if timer_overflowed:
-                # do not update timer states because they are needed to detect overflow and compute power
-                # sql = f"""UPDATE `device_control` SET `control_bits` = '{new_control_bits}', `timer_states` = '{new_timer_states}'  WHERE `device_id` = '{device_id}';"""
-                sql = f"""UPDATE `device_control` SET `control_bits` = '{new_control_bits}'  WHERE `device_id` = '{device_id}';"""
+                sql = f"""UPDATE `device_control` SET `control_bits` = '{new_control_bits}', `timer_states` = '{new_timer_states}'  WHERE `device_id` = '{device_id}';"""
+                # sql = f"""UPDATE `device_control` SET `control_bits` = '{new_control_bits}'  WHERE `device_id` = '{device_id}';"""
                 result = db.run_qry(sql)
             return new_control_bits
         else:
