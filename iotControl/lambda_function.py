@@ -6,6 +6,7 @@ import pymysql
 from datetime import date
 from datetime import datetime
 from db_helper import Database
+from db_queries import DatabaseQueries
 
 
 logging.basicConfig(level=logging.INFO)
@@ -23,38 +24,25 @@ def complete_power_session(power_end_switches: dict):
 
 def get_device_control_bits(device_id: str):
     # This sql statemate is to collect `power_supply` `clear wifi` etc
-    sql = f"""SELECT power_supply, clear_wifi, control_bits, timer_states
-    FROM `user_devices` LEFT JOIN `device_control`
-    ON user_devices.id = device_control.owner_id
-    WHERE `device_id` = '{device_id}';"""
+    db_queries = DatabaseQueries(device_id)
+    sql = db_queries.get_power_suply_status()
     result = db.run_qry(sql)[0]
 
     if result["clear_wifi"]:
         # update clear_wifi
-        sql = f"""UPDATE `user_devices`
-        LEFT JOIN `device_control`
-        ON user_devices.id = device_control.owner_id
-        SET `clear_wifi` = false
-        WHERE `device_id` = '{device_id}';"""
-        # no need to collect result for UPDATE query
+        sql = db_queries.update_wifi_status()
         db.run_qry(sql)
         return -1
 
     if result["power_supply"]:
         timer_flag = False
         # This sql is to collect timers data and handshake_times from esp8266 hardware
-        sql = f"""SELECT * FROM `device_timers`
-        RIGHT JOIN `device_control`
-        ON device_timers.device_id_id = device_control.device_id
-        WHERE `device_id` = '{device_id}';"""
+        sql = db_queries.get_handshakes_timer_states()
         timer_result = db.run_qry(sql)[0]
         timezone = pytz.timezone(timer_result["timezone"])
 
         # update hardware handshake time
-        current_time = datetime.now(timezone)
-        sql = f"""UPDATE `device_control`
-        SET `handshake_time` = '{current_time.strftime("%Y-%m-%d %H:%M:%S")}'
-        WHERE `device_id` = '{device_id}'"""
+        sql = db_queries.update_hardware_handshake_time(timezone)
         db.run_qry(sql)
         # no need to collect result for UPDATE query
 
@@ -65,11 +53,6 @@ def get_device_control_bits(device_id: str):
             else:
                 continue
         if timer_flag:
-            # sql = f"""SELECT * FROM `device_timers`
-            # RIGHT JOIN `device_control`
-            # ON device_timers.device_id_id = device_control.device_id
-            # WHERE `device_id` = '{device_id}';"""
-            # timer_result = db.run_qry(sql)[0]
             timer_states = timer_result["timer_states"]
             control_bits = timer_result["control_bits"]
             current_time = datetime.now(timezone)
@@ -103,8 +86,7 @@ def get_device_control_bits(device_id: str):
                     new_timer_states += "0"
 
             if timer_overflowed:
-                sql = f"""UPDATE `device_control` SET `control_bits` = '{new_control_bits}', `timer_states` = '{new_timer_states}'  WHERE `device_id` = '{device_id}';"""
-                # sql = f"""UPDATE `device_control` SET `control_bits` = '{new_control_bits}'  WHERE `device_id` = '{device_id}';"""
+                sql = db_queries.update_after_timer_overflow(new_control_bits, new_timer_states)
                 result = db.run_qry(sql)
                 # for tracting the power consumed by each swicth after timer over flow
                 create_power_session(power_start_switches)
@@ -114,13 +96,6 @@ def get_device_control_bits(device_id: str):
             return result["control_bits"]
     else:
         return "1" * len(result["control_bits"])
-
-
-def get_device_labels(device_id: str):
-    sql = f"""SELECT `device_description` FROM `device_control` WHERE `device_id` = '{device_id}'"""
-    result = db.run_qry(sql)[0]
-
-    return result["device_description"]
 
 
 def responce_structure(status_code: int, body: dict):
@@ -137,7 +112,7 @@ def responce_structure(status_code: int, body: dict):
     }
 
 
-def validate_mac_id(mac_id: list[str]):
+def validate_mac_id(mac_id: str):
     for char in mac_id.split(":"):
         # prevent sql injection
         if not char.isalnum():
@@ -207,5 +182,5 @@ def lambda_handler(event, context):
             db.run_qry(sql)
         except pymysql.err.IntegrityError as e:
             # duplicate mac ids was sent
-            logging.debug(e)
+            logging.error(e)
         return {"statusCode": 200, "body": json.dumps(mac_id)}
