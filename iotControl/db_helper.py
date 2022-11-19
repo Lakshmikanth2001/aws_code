@@ -38,6 +38,6 @@ class Database:
         # to check DB Connection pin the instance
         sql_connetion.ping()
         with sql_connetion.cursor() as cursor:
-            cursor.executemany(sql_statements)
+            cursor.execute(sql_statements)
             result = cursor.fetchall()
         return result
