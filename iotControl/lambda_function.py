@@ -104,9 +104,9 @@ def get_device_control_bits(device_id: str):
             if timer_overflowed:
                 # for tracting the power consumed by each swicth after timer over flow
                 power_session_sqls = []
-                if not power_start_switches:
+                if power_start_switches:
                     power_session_sqls = power_session_sqls + power_session_queries(db_queries, power_start_switches, "CREATE")
-                if not power_end_switches:
+                if power_end_switches:
                     power_session_sqls = power_session_sqls + power_session_queries(db_queries, power_end_switches, "COMPLETE")
 
                 # updating all power sessions after timer overflows
