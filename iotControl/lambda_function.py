@@ -8,8 +8,8 @@ from datetime import datetime
 from db_helper import Database
 from db_queries import DatabaseQueries
 
-
-logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger()
+logger.setLevel(logging.DEBUG)
 db = Database()
 
 def power_session_queries(
@@ -115,7 +115,9 @@ def get_device_control_bits(device_id: str):
 
                 # updating all power sessions after timer overflows
                 # no need to collect the result as all are `UPDATE` queries
-                db.run_multiple_queries(power_session_sqls)
+                logger.debug(power_session_sqls)
+                if power_session_sqls:
+                    db.run_multiple_queries(power_session_sqls)
             return new_control_bits
         else:
             return result["control_bits"]
@@ -207,5 +209,5 @@ def lambda_handler(event, context):
             db.run_qry(sql)
         except pymysql.err.IntegrityError as e:
             # duplicate mac ids was sent
-            logging.error(e)
+            logger.error(e)
         return {"statusCode": 200, "body": json.dumps(mac_id)}
