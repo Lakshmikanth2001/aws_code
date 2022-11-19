@@ -46,8 +46,8 @@ class DatabaseQueries:
 
     def create_power_session(self, device_bit_id: str, trigger_time: str):
         return f"""
-        UPDATE `device_power_session` SET `on_time`= {trigger_time}, `off_time` = NULL
-        WHERE `device_bit_id` = {device_bit_id}
+        INSERT INTO device_power_session(`device_bit_id`, `on_time`)
+        VALUES ({device_bit_id}, {trigger_time})
         """
 
     def complete_power_session(self, device_bit_id: str, trigger_time: str):
