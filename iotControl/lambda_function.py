@@ -12,15 +12,23 @@ from db_queries import DatabaseQueries
 logging.basicConfig(level=logging.INFO)
 db = Database()
 
-def create_power_session(power_start_switches: dict):
-    if power_start_switches is None:
-        return None
-    pass
+def power_session_queries(
+    db_queries: DatabaseQueries, power_switches: dict, power_session_type: str
+) -> list[str]:
+    if not ((power_session_type == "CREATE") or (power_session_type == "COMPLETE")):
+        raise ValueError("Invalid Power Session, it must be either `CREATE` or `COMPLETE`")
 
-def complete_power_session(power_end_switches: dict):
-    if power_end_switches is None:
-        return None
-    pass
+    if power_session_type == "CREATE":
+        power_session_method = db_queries.create_power_session
+    else:
+        power_session_method = db_queries.complete_power_session
+    update_queries = []
+    for switch_id, trigger_time in power_switches.items():
+        update_queries.append(
+            power_session_method(switch_id, trigger_time)
+        )
+    return update_queries
+
 
 def get_device_control_bits(device_id: str):
     # This sql statemate is to collect `power_supply` `clear wifi` etc
@@ -59,7 +67,7 @@ def get_device_control_bits(device_id: str):
             new_control_bits = ""
             new_timer_states = ""
             power_start_switches: dict = {}
-            power_end_switches:dict = {}
+            power_end_switches: dict = {}
 
             timer_overflowed = False
             for i in range(len(control_bits)):
@@ -74,10 +82,18 @@ def get_device_control_bits(device_id: str):
                     else:
                         timer_overflowed = True
                         if control_bits[i] == "0":
-                            power_end_switches[device_id+"_"+str(i)] = timezone.localize(trigger_time).strftime("%Y-%m-%d %H:%M:%S")
+                            power_end_switches[
+                                device_id + "_" + str(i)
+                            ] = timezone.localize(trigger_time).strftime(
+                                "%Y-%m-%d %H:%M:%S"
+                            )
                             new_control_bits += "1"
                         else:
-                            power_start_switches[device_id+"_"+str(i)] = timezone.localize(trigger_time).strftime("%Y-%m-%d %H:%M:%S")
+                            power_start_switches[
+                                device_id + "_" + str(i)
+                            ] = timezone.localize(trigger_time).strftime(
+                                "%Y-%m-%d %H:%M:%S"
+                            )
                             new_control_bits += "0"
                         # toggle the control bit and clear the timer state time
                         new_timer_states += "0"
@@ -86,11 +102,20 @@ def get_device_control_bits(device_id: str):
                     new_timer_states += "0"
 
             if timer_overflowed:
-                sql = db_queries.update_after_timer_overflow(new_control_bits, new_timer_states)
+                sql = db_queries.update_after_timer_overflow(
+                    new_control_bits, new_timer_states
+                )
                 result = db.run_qry(sql)
                 # for tracting the power consumed by each swicth after timer over flow
-                create_power_session(power_start_switches)
-                complete_power_session(power_end_switches)
+                power_session_sqls = []
+                if not power_start_switches:
+                    power_session_sqls.append(*power_session_queries(db_queries, power_start_switches, "CREATE"))
+                if not power_end_switches:
+                    power_session_sqls.append(*power_session_queries(db_queries, power_end_switches, "COMPLETE"))
+
+                # updating all power sessions after timer overflows
+                # no need to collect the result as all are `UPDATE` queries
+                db.run_multiple_queries(power_session_sqls)
             return new_control_bits
         else:
             return result["control_bits"]

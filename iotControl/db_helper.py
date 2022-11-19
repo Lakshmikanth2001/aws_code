@@ -1,5 +1,6 @@
 import os
 import pymysql
+from pymysql.constants import CLIENT
 
 
 class Database:
@@ -20,10 +21,23 @@ class Database:
         # end if
 
     def run_qry(self, sql: str):
+        # to check DB Connection pin the instance
         self.conn.ping()
         with self.conn.cursor() as cursor:
             cursor.execute(sql)
             self.conn.commit()
             result = cursor.fetchall()
         # end with
+        return result
+
+    def run_multiple_queries(self, sql_statements: list[str]):
+        new_db_cred = {"client_flag": CLIENT.MULTI_STATEMENTS, **self.database_cred}
+        sql_statements = ";".join(sql_statements)
+
+        sql_connetion = pymysql.connect(**new_db_cred)
+        # to check DB Connection pin the instance
+        sql_connetion.ping()
+        with sql_connetion.cursor() as cursor:
+            cursor.executemany(sql_statements)
+            result = cursor.fetchall()
         return result

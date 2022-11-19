@@ -43,3 +43,18 @@ class DatabaseQueries:
         `timer_states` = '{new_timer_states}'
         WHERE `device_id` = '{self.device_id}';
         """
+
+    def create_power_session(self, device_bit_id: str, trigger_time: str):
+        return f"""
+        UPDATE `device_power_session` SET `on_time`= {trigger_time}, `off_time` = NULL
+        WHERE `device_bit_id` = {device_bit_id}
+        """
+
+    def complete_power_session(self, device_bit_id: str, trigger_time: str):
+        return f"""
+        UPDATE `device_power_session` SET `off_time` = {trigger_time}
+        WHERE `id` = (
+            SELECT `id` FROM `device_power_session`
+            WHERE `device_bit_id` = {device_bit_id}
+            AND `off_time` IS NULL)
+        """
