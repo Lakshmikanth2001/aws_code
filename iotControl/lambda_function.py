@@ -87,14 +87,14 @@ def get_device_control_bits(device_id: str):
                         if control_bits[i] == "0":
                             power_end_switches[
                                 device_id + "_" + str(i)
-                            ] = utc_timezone.localize(trigger_time).strftime(
+                            ] = timezone.localize(trigger_time).astimezone(utc_timezone).strftime(
                                 "%Y-%m-%d %H:%M:%S"
                             )
                             new_control_bits += "1"
                         else:
                             power_start_switches[
                                 device_id + "_" + str(i)
-                            ] = utc_timezone.localize(trigger_time).strftime(
+                            ] = timezone.localize(trigger_time).astimezone(utc_timezone).strftime(
                                 "%Y-%m-%d %H:%M:%S"
                             )
                             new_control_bits += "0"
