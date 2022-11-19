@@ -33,6 +33,11 @@ class Database:
         return result
 
     def run_multiple_queries(self, sql_statements: list[str]):
+        if len(sql_statements) == 1:
+            result = self.run_qry(sql_statements[0])
+            logging.debug(f"[SQL_SINGLE]: {result}")
+            return result
+
         new_db_cred = {"client_flag": CLIENT.MULTI_STATEMENTS, **self.database_cred}
         sql_statements = ";".join(sql_statements)
 
@@ -41,5 +46,7 @@ class Database:
         sql_connetion.ping()
         with sql_connetion.cursor() as cursor:
             cursor.execute(sql_statements)
+            self.conn.commit()
             result = cursor.fetchall()
+        logging.debug(f"[SQL_MULTI]: {result}")
         return result

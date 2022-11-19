@@ -12,11 +12,14 @@ logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
 db = Database()
 
+
 def power_session_queries(
     db_queries: DatabaseQueries, power_switches: dict, power_session_type: str
 ) -> list[str]:
     if not ((power_session_type == "CREATE") or (power_session_type == "COMPLETE")):
-        raise ValueError("Invalid Power Session, it must be either `CREATE` or `COMPLETE`")
+        raise ValueError(
+            "Invalid Power Session, it must be either `CREATE` or `COMPLETE`"
+        )
 
     if power_session_type == "CREATE":
         power_session_method = db_queries.create_power_session
@@ -24,9 +27,7 @@ def power_session_queries(
         power_session_method = db_queries.complete_power_session
     update_queries = []
     for switch_id, trigger_time in power_switches.items():
-        update_queries.append(
-            power_session_method(switch_id, trigger_time)
-        )
+        update_queries.append(power_session_method(switch_id, trigger_time))
     return update_queries
 
 
@@ -48,6 +49,7 @@ def get_device_control_bits(device_id: str):
         sql = db_queries.get_handshakes_timer_states()
         timer_result = db.run_qry(sql)[0]
         timezone = pytz.timezone(timer_result["timezone"])
+        utc_timezone = pytz.timezone('UTC')
 
         # update hardware handshake time
         sql = db_queries.update_hardware_handshake_time(timezone)
@@ -81,17 +83,18 @@ def get_device_control_bits(device_id: str):
                         new_timer_states += "1"
                     else:
                         timer_overflowed = True
+                        # all power sessions are UTC configured
                         if control_bits[i] == "0":
                             power_end_switches[
                                 device_id + "_" + str(i)
-                            ] = timezone.localize(trigger_time).strftime(
+                            ] = utc_timezone.localize(trigger_time).strftime(
                                 "%Y-%m-%d %H:%M:%S"
                             )
                             new_control_bits += "1"
                         else:
                             power_start_switches[
                                 device_id + "_" + str(i)
-                            ] = timezone.localize(trigger_time).strftime(
+                            ] = utc_timezone.localize(trigger_time).strftime(
                                 "%Y-%m-%d %H:%M:%S"
                             )
                             new_control_bits += "0"
@@ -105,9 +108,13 @@ def get_device_control_bits(device_id: str):
                 # for tracting the power consumed by each swicth after timer over flow
                 power_session_sqls = []
                 if power_start_switches:
-                    power_session_sqls = power_session_sqls + power_session_queries(db_queries, power_start_switches, "CREATE")
+                    power_session_sqls = power_session_sqls + power_session_queries(
+                        db_queries, power_start_switches, "CREATE"
+                    )
                 if power_end_switches:
-                    power_session_sqls = power_session_sqls + power_session_queries(db_queries, power_end_switches, "COMPLETE")
+                    power_session_sqls = power_session_sqls + power_session_queries(
+                        db_queries, power_end_switches, "COMPLETE"
+                    )
 
                 # updating all power sessions after timer overflows
                 # no need to collect the result as all are `UPDATE` queries
@@ -213,3 +220,28 @@ def lambda_handler(event, context):
             # duplicate mac ids was sent
             logger.error(e)
         return {"statusCode": 200, "body": json.dumps(mac_id)}
+    elif event.get("httpMethod") == "TEST":
+        from unit_test import TestPowerSession
+
+        test_device_switch_id = event.get("device_switch_id")
+        t = TestPowerSession(test_device_switch_id)
+        if event.get("testCase") == "total_power_session":
+            t.create_power_session()
+            t.complete_power_session()
+            return {
+                "statusCode": 200,
+                "body": "Total Power Session (create and complete) are working",
+            }
+        if event.get("testCase") == "create_power_session":
+            t.create_power_session()
+            return {
+                "statusCode": 200,
+                "body": "Create Power Session are working",
+            }
+        if event.get("testCase") == "complete_power_session":
+            t.complete_power_session()
+            return {
+                "statusCode": 200,
+                "body": "Complete Power Session are working",
+            }
+
