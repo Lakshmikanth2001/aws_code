@@ -102,10 +102,6 @@ def get_device_control_bits(device_id: str):
                     new_timer_states += "0"
 
             if timer_overflowed:
-                sql = db_queries.update_after_timer_overflow(
-                    new_control_bits, new_timer_states
-                )
-                result = db.run_qry(sql)
                 # for tracting the power consumed by each swicth after timer over flow
                 power_session_sqls = []
                 if not power_start_switches:
@@ -118,6 +114,12 @@ def get_device_control_bits(device_id: str):
                 logger.debug(power_session_sqls)
                 if power_session_sqls:
                     db.run_multiple_queries(power_session_sqls)
+
+                # clear timer overflows after correcting the power sessions
+                sql = db_queries.update_after_timer_overflow(
+                    new_control_bits, new_timer_states
+                )
+                db.run_qry(sql)
             return new_control_bits
         else:
             return result["control_bits"]
