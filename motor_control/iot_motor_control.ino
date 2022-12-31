@@ -225,9 +225,6 @@ void loop()
         if (global_http_code == 200 || global_http_code == 201)
         {
             analogWrite(PWM_PIN, response.toInt());
-
-
-
         }
     }
 }

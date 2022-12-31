@@ -43,95 +43,112 @@ def get_device_control_bits(device_id: str):
         db.run_qry(sql)
         return -1
 
-    if result["power_supply"]:
-        timer_flag = False
-        # This sql is to collect timers data and handshake_times from esp8266 hardware
-        sql = db_queries.get_handshakes_timer_states()
-        timer_result = db.run_qry(sql)[0]
-        timezone = pytz.timezone(timer_result["timezone"])
-        utc_timezone = pytz.timezone('UTC')
-
-        # update hardware handshake time
-        sql = db_queries.update_hardware_handshake_time(timezone)
-        db.run_qry(sql)
-        # no need to collect result for UPDATE query
-
-        for timer_state in result["timer_states"]:
-            if timer_state == "1":
-                timer_flag = True
-                break
-            else:
-                continue
-        if timer_flag:
-            timer_states = timer_result["timer_states"]
-            control_bits = timer_result["control_bits"]
-            current_time = datetime.now(timezone)
-            new_control_bits = ""
-            new_timer_states = ""
-            power_start_switches: dict = {}
-            power_end_switches: dict = {}
-
-            timer_overflowed = False
-            for i in range(len(control_bits)):
-                trigger_time = timer_result[f"time_{i}"]
-                if timer_states[i] == "1" and trigger_time != None:
-                    # no need to localize current_time
-                    if current_time < timezone.localize(trigger_time):
-                        # prevent sql injection
-                        assert control_bits[i] == "1" or control_bits[i] == "0"
-                        new_control_bits += control_bits[i]
-                        new_timer_states += "1"
-                    else:
-                        timer_overflowed = True
-                        # all power sessions are UTC configured
-                        if control_bits[i] == "0":
-                            power_end_switches[
-                                device_id + "_" + str(i)
-                            ] = timezone.localize(trigger_time).astimezone(utc_timezone).strftime(
-                                "%Y-%m-%d %H:%M:%S"
-                            )
-                            new_control_bits += "1"
-                        else:
-                            power_start_switches[
-                                device_id + "_" + str(i)
-                            ] = timezone.localize(trigger_time).astimezone(utc_timezone).strftime(
-                                "%Y-%m-%d %H:%M:%S"
-                            )
-                            new_control_bits += "0"
-                        # toggle the control bit and clear the timer state time
-                        new_timer_states += "0"
-                else:
-                    new_control_bits += control_bits[i]
-                    new_timer_states += "0"
-
-            if timer_overflowed:
-                # for tracting the power consumed by each swicth after timer over flow
-                power_session_sqls = []
-                if power_start_switches:
-                    power_session_sqls = power_session_sqls + power_session_queries(
-                        db_queries, power_start_switches, "CREATE"
-                    )
-                if power_end_switches:
-                    power_session_sqls = power_session_sqls + power_session_queries(
-                        db_queries, power_end_switches, "COMPLETE"
-                    )
-
-                # updating all power sessions after timer overflows
-                # no need to collect the result as all are `UPDATE` queries
-                logger.debug(power_session_sqls)
-                if power_session_sqls:
-                    db.run_multiple_queries(power_session_sqls)
-
-                # clear timer overflows after correcting the power sessions
-                sql = db_queries.update_after_timer_overflow(
-                    new_control_bits, new_timer_states
-                )
-                db.run_qry(sql)
-            return new_control_bits
-        else:
-            return result["control_bits"]
-    else:
+    if not result["power_supply"]:
         return "1" * len(result["control_bits"])
+
+    timer_flag = False
+    # This sql is to collect timers data and handshake_times from esp8266 hardware
+    sql = db_queries.get_handshakes_timer_states()
+    timer_result = db.run_qry(sql)[0]
+    timezone = pytz.timezone(timer_result["timezone"])
+    utc_timezone = pytz.timezone("UTC")
+
+    # update hardware handshake time
+    sql = db_queries.update_hardware_handshake_time(timezone)
+    db.run_qry(sql)
+    # no need to collect result for UPDATE query
+
+    for timer_state in result["timer_states"]:
+        if timer_state == "1":
+            timer_flag = True
+            break
+        else:
+            continue
+
+    if not timer_flag:
+        return result["control_bits"]
+
+    timer_states = timer_result["timer_states"]
+    control_bits = timer_result["control_bits"]
+    current_time = datetime.now(timezone)
+    new_control_bits = ""
+    new_timer_states = ""
+    power_start_switches: dict = {}
+    power_end_switches: dict = {}
+
+    timer_overflowed = False
+    for i in range(len(control_bits)):
+        trigger_time = timer_result[f"time_{i}"]
+        if timer_states[i] == "1" and trigger_time != None:
+            # no need to localize current_time
+            if current_time < timezone.localize(trigger_time):
+                # prevent sql injection
+                assert control_bits[i] == "1" or control_bits[i] == "0"
+                new_control_bits += control_bits[i]
+                new_timer_states += "1"
+            else:
+                timer_overflowed = True
+                # all power sessions are UTC configured
+                if control_bits[i] == "0":
+                    power_end_switches[device_id + "_" + str(i)] = (
+                        timezone.localize(trigger_time)
+                        .astimezone(utc_timezone)
+                        .strftime("%Y-%m-%d %H:%M:%S")
+                    )
+                    new_control_bits += "1"
+                else:
+                    power_start_switches[device_id + "_" + str(i)] = (
+                        timezone.localize(trigger_time)
+                        .astimezone(utc_timezone)
+                        .strftime("%Y-%m-%d %H:%M:%S")
+                    )
+                    new_control_bits += "0"
+                # toggle the control bit and clear the timer state time
+                new_timer_states += "0"
+        else:
+            new_control_bits += control_bits[i]
+            new_timer_states += "0"
+
+    if timer_overflowed:
+        # for tracting the power consumed by each swicth after timer over flow
+        power_session_manager(
+            db_queries,
+            new_control_bits,
+            new_timer_states,
+            power_start_switches,
+            power_end_switches,
+        )
+
+    return new_control_bits
+
+
+# utility method to create or complete power sesion after timer overflow
+def power_session_manager(
+    db_queries: DatabaseQueries,
+    new_control_bits: str,
+    new_timer_states,
+    power_start_switches,
+    power_end_switches,
+):
+    power_session_sqls = []
+    if power_start_switches:
+        power_session_sqls = power_session_sqls + power_session_queries(
+            db_queries, power_start_switches, "CREATE"
+        )
+    if power_end_switches:
+        power_session_sqls = power_session_sqls + power_session_queries(
+            db_queries, power_end_switches, "COMPLETE"
+        )
+
+        # updating all power sessions after timer overflows
+        # no need to collect the result as all are `UPDATE` queries
+    logger.debug(power_session_sqls)
+    if power_session_sqls:
+        db.run_multiple_queries(power_session_sqls)
+
+        # clear timer overflows after correcting the power sessions
+    sql = db_queries.update_after_timer_overflow(new_control_bits, new_timer_states)
+    db.run_qry(sql)
 
 
 def responce_structure(status_code: int, body: dict):
@@ -244,4 +261,3 @@ def lambda_handler(event, context):
                 "statusCode": 200,
                 "body": "Complete Power Session are working",
             }
-

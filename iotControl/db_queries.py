@@ -1,11 +1,14 @@
 from datetime import datetime
 
+
 def sql_formate(method):
     def wrapper(*args, **kwargs):
         sql_string = method(*args, **kwargs)
-        sql_string = sql_string.replace('\n', '')
+        sql_string = sql_string.replace("\n", "")
         return sql_string
+
     return wrapper
+
 
 class DatabaseQueries:
     def __init__(self, device_id) -> None:
@@ -63,7 +66,7 @@ class DatabaseQueries:
 
     @sql_formate
     def complete_power_session(self, device_bit_id: str, trigger_time: str):
-        #https://stackoverflow.com/questions/4429319/you-cant-specify-target-table-for-update-in-from-clause/14302701#14302701
+        # https://stackoverflow.com/questions/4429319/you-cant-specify-target-table-for-update-in-from-clause/14302701#14302701
         return f"""
         UPDATE `device_power_session` SET `off_time` = '{trigger_time}'
         WHERE `device_bit_id` = '{device_bit_id}' AND `off_time` IS NULL

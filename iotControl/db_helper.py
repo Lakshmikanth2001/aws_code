@@ -2,8 +2,10 @@ import os
 import logging
 import pymysql
 from pymysql.constants import CLIENT
+
 logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
+
 
 class Database:
 
