@@ -1,0 +1,5 @@
+{
+    "httpMethod": "TEST",
+    "device_switch_id": "600_0",
+    "testCase": "complete_power_session"
+}

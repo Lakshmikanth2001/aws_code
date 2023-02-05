@@ -20,15 +20,15 @@ class DatabaseQueries:
         SELECT power_supply, clear_wifi, control_bits, timer_states
         FROM `user_devices` LEFT JOIN `device_control`
         ON user_devices.id = device_control.owner_id
-        WHERE `device_id` = '{self.device_id}';"""
+        WHERE device_control.device_id = '{self.device_id}';"""
 
     @sql_formate
     def get_handshakes_timer_states(self) -> str:
         return f"""
         SELECT * FROM `device_timers`
         RIGHT JOIN `device_control`
-        ON device_timers.device_id_id = device_control.device_id
-        WHERE `device_id` = '{self.device_id}';
+        ON device_timers.device_id = device_control.device_id
+        WHERE device_control.device_id = '{self.device_id}';
         """
 
     @sql_formate
