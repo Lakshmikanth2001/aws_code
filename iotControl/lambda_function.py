@@ -79,35 +79,42 @@ def get_device_control_bits(device_id: str):
     timer_overflowed = False
     for i in range(len(control_bits)):
         trigger_time = timer_result[f"time_{i}"]
-        if timer_states[i] == "1" and trigger_time != None:
-            # no need to localize current_time
-            if current_time < timezone.localize(trigger_time):
-                # prevent sql injection
-                assert control_bits[i] == "1" or control_bits[i] == "0"
-                new_control_bits += control_bits[i]
-                new_timer_states += "1"
-            else:
-                timer_overflowed = True
-                # all power sessions are UTC configured
-                if control_bits[i] == "0":
-                    power_end_switches[device_id + "_" + str(i)] = (
-                        timezone.localize(trigger_time)
-                        .astimezone(utc_timezone)
-                        .strftime("%Y-%m-%d %H:%M:%S")
-                    )
-                    new_control_bits += "1"
-                else:
-                    power_start_switches[device_id + "_" + str(i)] = (
-                        timezone.localize(trigger_time)
-                        .astimezone(utc_timezone)
-                        .strftime("%Y-%m-%d %H:%M:%S")
-                    )
-                    new_control_bits += "0"
-                # toggle the control bit and clear the timer state time
-                new_timer_states += "0"
-        else:
+
+        if not (timer_states[i] == "1" and trigger_time != None):
             new_control_bits += control_bits[i]
             new_timer_states += "0"
+            continue
+
+        # if timer is active and trigger time is not None - Guard Clause
+
+        # no need to localize current_time
+        if current_time < timezone.localize(trigger_time):
+            # prevent sql injection
+            # assert control_bits[i] == "1" or control_bits[i] == "0"
+            new_control_bits += control_bits[i]
+            new_timer_states += "1"
+            continue
+
+        # guard clause for timer_overflow
+        timer_overflowed = True
+        # all power sessions are UTC configured
+        if control_bits[i] == "0":
+            power_end_switches[device_id + "_" + str(i)] = (
+                timezone.localize(trigger_time)
+                .astimezone(utc_timezone)
+                .strftime("%Y-%m-%d %H:%M:%S")
+            )
+            new_control_bits += "1"
+        else:
+            power_start_switches[device_id + "_" + str(i)] = (
+                timezone.localize(trigger_time)
+                .astimezone(utc_timezone)
+                .strftime("%Y-%m-%d %H:%M:%S")
+            )
+            new_control_bits += "0"
+        # toggle the control bit and clear the timer state time
+        new_timer_states += "0"
+
 
     if timer_overflowed:
         # for tracting the power consumed by each swicth after timer over flow
@@ -173,6 +180,25 @@ def validate_mac_id(mac_id: str):
     return True
 
 
+def get_response(event: dict, device_id: str):
+    if event["queryStringParameters"].get("hardware") == "esp8266":
+        # sql = f"""SELECT `control_bits` FROM `device_control` WHERE `device_id` = {device_id}"""
+        # result = db.run_qry(sql)[0]
+        return {
+            "statusCode": 200,
+            "body": get_device_control_bits(device_id),
+            "headers": {"content-type": "text/plain"},
+        }
+    elif event["queryStringParameters"].get("fetch") == "finger_print":
+        return {
+            "statusCode": 200,
+            "body": os.environ["THUMBPRINT"],
+            "headers": {"content-type": "text/plain"},
+        }
+    else:
+        return responce_structure(400, "Bad Request")
+
+
 def lambda_handler(event, context):
 
     # TODO implement
@@ -199,22 +225,7 @@ def lambda_handler(event, context):
 
     if event.get("httpMethod") == "GET":
         if event.get("queryStringParameters") and device_provided:
-            if event["queryStringParameters"].get("hardware") == "esp8266":
-                # sql = f"""SELECT `control_bits` FROM `device_control` WHERE `device_id` = {device_id}"""
-                # result = db.run_qry(sql)[0]
-                return {
-                    "statusCode": 200,
-                    "body": get_device_control_bits(device_id),
-                    "headers": {"content-type": "text/plain"},
-                }
-            elif event["queryStringParameters"].get("fetch") == "finger_print":
-                return {
-                    "statusCode": 200,
-                    "body": os.environ["THUMBPRINT"],
-                    "headers": {"content-type": "text/plain"},
-                }
-            else:
-                return responce_structure(400, "Bad Request")
+            return get_response(event, device_id)
 
         elif device_provided:
             sql = f"""SELECT `control_bits`,`device_description` FROM `device_control` WHERE `device_id` = '{device_id}'"""
