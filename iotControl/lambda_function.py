@@ -13,6 +13,10 @@ logger.setLevel(logging.DEBUG)
 db = Database()
 UTC_TIMEZONE = pytz.timezone("UTC")
 
+def get_date(date_str: str, time_str: str):
+    date = list(map(int, date_str.split("-")))
+    time = list(map(int, time_str.split(":")))
+    return datetime(*date, *time)
 
 def manage_switch_power_seesion(
     old_control_bit: str,
@@ -76,10 +80,11 @@ def handle_series_timer(old_control_bit: str, device_id: str, switch_index: int)
         if timer_info.get("overflowed", False):
             new_control_bit = old_control_bit
 
-        overflow_time: datetime = UTC_TIMEZONE.localize(timer_info["timer_overflow_time"])
-        current_utc_time = UTC_TIMEZONE.localize(datetime.utcnow())
+        overflow_date, overflow_time = timer_info["timer_overflow_time"].split(" ")
+        overflow_datetime: datetime = UTC_TIMEZONE.localize(get_date(overflow_date, overflow_time))
+        current_utc_datetime = UTC_TIMEZONE.localize(datetime.utcnow())
 
-        if current_utc_time >= overflow_time:
+        if current_utc_datetime >= overflow_datetime:
             new_control_bit = "0" if result["desired_sttate"] == "ON" else "1"
             power_session_sqls.append(
                 manage_switch_power_seesion(
