@@ -76,7 +76,7 @@ def handle_series_timer(old_control_bit: str, device_id: str, switch_index: int)
         if timer_info.get("overflowed", False):
             new_control_bit = old_control_bit
 
-        overflow_time: datetime = UTC_TIMEZONE.localize(result["timer_overflow_time"])
+        overflow_time: datetime = UTC_TIMEZONE.localize(timer_info["timer_overflow_time"])
         current_utc_time = UTC_TIMEZONE.localize(datetime.utcnow())
 
         if current_utc_time >= overflow_time:
