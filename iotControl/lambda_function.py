@@ -70,7 +70,7 @@ def collect_resolve_series_timers(
 
 
 def handle_series_timer(old_control_bit: str, device_id: str, switch_index: int):
-    new_control_bit = "-1"
+    new_control_bit = old_control_bit
     db_queries = DatabaseQueries(device_id)
     sql = db_queries.get_series_timer_states(switch_index)
     result = db.run_qry(sql)[0]
@@ -80,6 +80,7 @@ def handle_series_timer(old_control_bit: str, device_id: str, switch_index: int)
     for timer_info in series_timers_info:
         if timer_info.get("overflowed", False):
             new_control_bit = old_control_bit
+            continue
 
         overflow_date, overflow_time = timer_info["timer_overflow_time"].split(" ")
         overflow_datetime: datetime = UTC_TIMEZONE.localize(get_date(overflow_date, overflow_time))
@@ -151,6 +152,7 @@ def get_device_control_bits(device_id: str):
         control_bits, series_timer_power_session_sqls = collect_resolve_series_timers(
             device_id, control_bits, result["series_timer_states"]
         )
+        # logging.info(f"control bits after series_timer_overflow {control_bits}")
 
     current_time = datetime.now(timezone)
     timer_overflowed = False
