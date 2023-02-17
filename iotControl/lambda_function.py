@@ -79,7 +79,7 @@ def handle_series_timer(old_control_bit: str, device_id: str, switch_index: int)
     logger.debug(series_timers_info)
     for timer_info in series_timers_info:
         if timer_info.get("overflowed", False):
-            new_control_bit = old_control_bit
+            # new_control_bit = old_control_bit
             continue
 
         overflow_date, overflow_time = timer_info["timer_overflow_time"].split(" ")
