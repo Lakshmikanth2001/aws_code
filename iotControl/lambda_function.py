@@ -59,9 +59,10 @@ def collect_resolve_series_timers(
     new_control_bits = ""
     for index, timer_state in enumerate(series_timer_states):
         if timer_state == "1":
-            (new_control_bits, power_sql) = handle_series_timer(
+            (new_control_bit, power_sql) = handle_series_timer(
                 control_bits[index], device_id, index
             )
+            new_control_bits += new_control_bit
             power_session_sqls.append(power_sql)
         else:
             new_control_bits += control_bits[index]
