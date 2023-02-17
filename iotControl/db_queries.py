@@ -66,6 +66,14 @@ class DatabaseQueries:
         """
 
     @sql_formate
+    def update_after_series_timer_overflow(self, new_control_bits: str, new_series_timer_states: str) -> str:
+        return f"""
+        UPDATE `device_control` SET `control_bits` = '{new_control_bits}',
+        `series_timer_states` = '{new_series_timer_states}'
+        WHERE `device_id` = '{self.device_id}';
+        """
+
+    @sql_formate
     def create_power_session(self, device_bit_id: str, trigger_time: str):
         return f"""
         INSERT INTO device_power_session(`device_bit_id`, `on_time`)
