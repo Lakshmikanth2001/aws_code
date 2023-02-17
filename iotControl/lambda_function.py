@@ -15,14 +15,19 @@ UTC_TIMEZONE = pytz.timezone("UTC")
 
 
 def manage_switch_power_seesion(
-    new_control_bit: str, device_id: str, switch_index: int, overflow_time: datetime
+    old_control_bit: str,
+    new_control_bit: str,
+    device_id: str,
+    switch_index: int,
+    overflow_time: datetime,
 ) -> str:
     db_queries = DatabaseQueries(device_id)
-    if new_control_bit == "0":
+    if old_control_bit == "1" and new_control_bit == "0":
         return db_queries.create_power_session(switch_index, overflow_time)
-    elif new_control_bit == "1":
+    elif old_control_bit == "0" and new_control_bit == "1":
         return db_queries.complete_power_session(switch_index, overflow_time)
-    raise ValueError("Invalid control bit supplied")
+    # no need to create or complete power session
+    return None
 
 
 def power_session_queries(
@@ -43,17 +48,20 @@ def power_session_queries(
     return update_queries
 
 
-def collect_resolve_series_timers(device_id: str, control_bits: str, series_timer_states: str):
+def collect_resolve_series_timers(
+    device_id: str, control_bits: str, series_timer_states: str
+):
     power_session_sqls = []
     new_control_bits = ""
     for index, timer_state in enumerate(series_timer_states):
         if timer_state == "1":
-            (new_control_bits, power_sql) = handle_series_timer(control_bits[index], device_id, index)
+            (new_control_bits, power_sql) = handle_series_timer(
+                control_bits[index], device_id, index
+            )
             power_session_sqls.append(power_sql)
         else:
             new_control_bits += control_bits[index]
     return new_control_bits, power_session_sqls
-
 
 
 def handle_series_timer(old_control_bit: str, device_id: str, switch_index: int):
@@ -73,10 +81,17 @@ def handle_series_timer(old_control_bit: str, device_id: str, switch_index: int)
         if current_utc_time >= overflow_time:
             new_control_bit = "0" if result["desired_sttate"] == "ON" else "1"
             power_session_sqls.append(
-                manage_switch_power_seesion(new_control_bit, device_id, switch_index, overflow_time)
+                manage_switch_power_seesion(
+                    old_control_bit,
+                    new_control_bit,
+                    device_id,
+                    switch_index,
+                    overflow_time,
+                )
             )
 
     return new_control_bit, power_session_sqls
+
 
 def get_device_control_bits(device_id: str):
     # This sql statemate is to collect `power_supply` `clear wifi` etc
@@ -170,7 +185,6 @@ def get_device_control_bits(device_id: str):
         # toggle the control bit and clear the timer state time
         new_timer_states += "0"
 
-
     if timer_overflowed:
         # for tracting the power consumed by each swicth after timer over flow
         power_session_manager(
@@ -179,7 +193,7 @@ def get_device_control_bits(device_id: str):
             new_timer_states,
             power_start_switches,
             power_end_switches,
-            series_timer_power_session_sqls
+            series_timer_power_session_sqls,
         )
 
     return new_control_bits
@@ -192,7 +206,7 @@ def power_session_manager(
     new_timer_states,
     power_start_switches,
     power_end_switches,
-    series_timer_power_sql
+    series_timer_power_sql,
 ):
     power_session_sqls = []
     if power_start_switches:
