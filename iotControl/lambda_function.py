@@ -70,7 +70,8 @@ def handle_series_timer(old_control_bit: str, device_id: str, switch_index: int)
     sql = db_queries.get_series_timer_states(switch_index)
     result = db.run_qry(sql)[0]
     power_session_sqls = []
-    series_timers_info: list[dict] = json.loads(result["timer_info"][0])
+    series_timers_info: list[dict] = json.loads(result["timer_info"])
+    logger.debug(series_timers_info)
     for timer_info in series_timers_info:
         if timer_info.get("overflowed", False):
             new_control_bit = old_control_bit

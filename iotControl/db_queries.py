@@ -36,7 +36,7 @@ class DatabaseQueries:
         return f"""
         SELECT * FROM `device_series_timers`
         WHERE device_id = '{self.device_id}' AND
-        switch_index = '{switch_index}'
+        switch_index = {switch_index}
         """
 
     @sql_formate
