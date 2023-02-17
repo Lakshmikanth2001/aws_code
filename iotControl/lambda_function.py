@@ -25,7 +25,7 @@ def manage_switch_power_seesion(
     new_control_bit: str,
     device_id: str,
     switch_index: int,
-    overflow_time: datetime,
+    overflow_time: str,
 ) -> str:
     db_queries = DatabaseQueries(device_id)
     if old_control_bit == "1" and new_control_bit == "0":
@@ -58,41 +58,58 @@ def handle_series_timer(old_control_bit: str, device_id: str, switch_index: int)
     new_control_bit = old_control_bit
     db_queries = DatabaseQueries(device_id)
     sql = db_queries.get_series_timer_states(switch_index)
+    overflow_flag = False
 
     result = db.run_qry(sql)[0]
     power_session_sqls = []
+    user_timezone = pytz.timezone(result["timezone"])
     series_timers_info: list[dict] = json.loads(result["timer_info"])
 
     logger.debug(series_timers_info)
 
     all_timers_overflowed = True
-    for timer_info in series_timers_info:
+    for index, timer_info in enumerate(series_timers_info):
         if timer_info.get("overflowed", False):
             # new_control_bit = old_control_bit
             all_timers_overflowed = False
             continue
 
         overflow_date, overflow_time = timer_info["timer_overflow_time"].split(" ")
-        overflow_datetime: datetime = UTC_TIMEZONE.localize(
+        overflow_datetime: datetime = user_timezone.localize(
             get_date(overflow_date, overflow_time)
         )
-        current_utc_datetime = UTC_TIMEZONE.localize(datetime.utcnow())
+        current_utc_datetime = datetime.now(user_timezone)
+
+        logger.info(f"Current UTC time {current_utc_datetime}")
+        logger.info(f"Overflow time {overflow_datetime}")
+        logger.debug(current_utc_datetime >= overflow_datetime)
 
         if current_utc_datetime >= overflow_datetime:
-            logging.info("timer overflowed")
-            new_control_bit = "0" if result["desired_state"] == "ON" else "1"
+            logger.info("timer overflowed")
+            overflow_flag = True
+            new_control_bit = "0" if timer_info["desired_state"] == "ON" else "1"
             power_session_sqls.append(
                 manage_switch_power_seesion(
                     old_control_bit,
                     new_control_bit,
                     device_id,
                     switch_index,
-                    overflow_time,
+                    overflow_datetime.astimezone(UTC_TIMEZONE).strftime(
+                        "%Y-%m-%d %H:%M:%S"
+                    ),
                 )
             )
+            timer_info["overflowed"] = "true"
+            series_timers_info[index] = timer_info
             old_control_bit = new_control_bit
 
-    return new_control_bit, power_session_sqls, all_timers_overflowed
+    return (
+        new_control_bit,
+        power_session_sqls,
+        all_timers_overflowed,
+        series_timers_info,
+        overflow_flag
+    )
 
 
 def collect_resolve_series_timers(
@@ -102,28 +119,46 @@ def collect_resolve_series_timers(
     series_timer_overflowed = False
     new_control_bits = ""
     new_series_timer_states = ""
-    for index, timer_state in enumerate(series_timer_states):
-        if timer_state == "1":
-            (new_control_bit, power_sql, all_timers_overflowed) = handle_series_timer(
-                control_bits[index], device_id, index
-            )
-            if control_bits[index] != new_control_bit:
-                series_timer_overflowed = True
-            new_control_bits += new_control_bit
-            power_session_sqls.append(power_sql)
 
-            # clear the series timer
-            if all_timers_overflowed:
-                new_series_timer_states += "0"
-            else:
-                new_series_timer_states += timer_state
-        else:
+    timerinfo_update_sqls = []
+
+    for index, timer_state in enumerate(series_timer_states):
+        if timer_state == "0":
             new_control_bits += control_bits[index]
+            new_series_timer_states += timer_state
+            continue
+
+        (
+            new_control_bit,
+            power_sql,
+            all_timers_overflowed,
+            series_timers_info,
+            timer_overflowed
+        ) = handle_series_timer(control_bits[index], device_id, index)
+
+        # if any one of the series time overflowed we should update the timer states
+        if timer_overflowed:
+            series_timer_overflowed = True
+
+        timerinfo_update_sqls.append(
+            DatabaseQueries.update_series_timer_info(
+                device_id, index, series_timers_info
+            )
+        )
+        new_control_bits += new_control_bit
+        power_session_sqls.append(power_sql)
+
+        # clear the series timer
+        if all_timers_overflowed:
+            new_series_timer_states += "0"
+        else:
+            new_series_timer_states += timer_state
     return (
         new_control_bits,
         new_series_timer_states,
         power_session_sqls,
         series_timer_overflowed,
+        timerinfo_update_sqls,
     )
 
 
@@ -180,6 +215,7 @@ def get_device_control_bits(device_id: str):
             new_series_timer_states,
             series_timer_power_session_sqls,
             series_timer_overflowed_flag,
+            timer_info_update_sqls
         ) = collect_resolve_series_timers(
             device_id, control_bits, result["series_timer_states"]
         )
@@ -237,12 +273,11 @@ def get_device_control_bits(device_id: str):
             power_start_switches,
             power_end_switches,
             series_timer_power_session_sqls,
+            timer_info_update_sqls,
         )
 
-    if series_timer_overflowed_flag:
-        pass
-
     return new_control_bits
+
 
 # utility method to create or complete power sesion after timer overflow
 def power_session_manager(
@@ -254,7 +289,8 @@ def power_session_manager(
     series_timer_overflowed: bool,
     power_start_switches,
     power_end_switches,
-    series_timer_power_sql,
+    series_timer_power_sqls,
+    timer_info_update_sqls,
 ):
     power_session_sqls = []
     if power_start_switches:
@@ -271,16 +307,22 @@ def power_session_manager(
     logger.debug(power_session_sqls)
 
     if power_session_sqls:
-        db.run_multiple_queries(power_session_sqls + series_timer_power_sql)
+        db.run_multiple_queries(power_session_sqls + series_timer_power_sqls)
 
     # clear timer overflows after correcting the power sessions
     update_sqls = []
     if timer_overflowed:
-        update_sqls.append(db_queries.update_after_timer_overflow(new_control_bits, new_timer_states))
+        update_sqls.append(
+            db_queries.update_after_timer_overflow(new_control_bits, new_timer_states)
+        )
     if series_timer_overflowed:
-        update_sqls.append(db_queries.update_after_series_timer_overflow(new_control_bits, new_series_timer_states))
+        update_sqls.append(
+            db_queries.update_after_series_timer_overflow(
+                new_control_bits, new_series_timer_states
+            )
+        )
 
-    db.run_multiple_queries(update_sqls)
+    db.run_multiple_queries(update_sqls + timer_info_update_sqls)
 
 
 def responce_structure(status_code: int, body: dict):

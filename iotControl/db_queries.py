@@ -1,3 +1,4 @@
+import json
 from datetime import datetime
 
 
@@ -71,6 +72,14 @@ class DatabaseQueries:
         UPDATE `device_control` SET `control_bits` = '{new_control_bits}',
         `series_timer_states` = '{new_series_timer_states}'
         WHERE `device_id` = '{self.device_id}';
+        """
+
+    @classmethod
+    @sql_formate
+    def update_series_timer_info(cls, device_id: str, switch_index: int, timer_info: list[dict]):
+        return f"""
+        UPDATE `device_series_timers` SET `timer_info` = {json.dumps(timer_info)},
+        WHERE `device_id` = '{device_id}' AND `switch_index` = {switch_index};
         """
 
     @sql_formate
