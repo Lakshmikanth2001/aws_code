@@ -17,7 +17,7 @@ class DatabaseQueries:
     @sql_formate
     def get_power_suply_status(self) -> str:
         return f"""
-        SELECT power_supply, clear_wifi, control_bits, timer_states
+        SELECT power_supply, clear_wifi, control_bits, timer_states, series_timer_states
         FROM `user_devices` LEFT JOIN `device_control`
         ON user_devices.id = device_control.owner_id
         WHERE device_control.device_id = '{self.device_id}';"""
@@ -29,6 +29,14 @@ class DatabaseQueries:
         RIGHT JOIN `device_control`
         ON device_timers.device_id = device_control.device_id
         WHERE device_control.device_id = '{self.device_id}';
+        """
+
+    @sql_formate
+    def get_series_timer_states(self, switch_index: int) -> str:
+        return f"""
+        SELECT * FROM `device_series_timers`
+        WHERE device_id = '{self.device_id}' AND
+        switch_index = '{switch_index}'
         """
 
     @sql_formate

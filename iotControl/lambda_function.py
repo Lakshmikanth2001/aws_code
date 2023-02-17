@@ -11,6 +11,18 @@ from db_queries import DatabaseQueries
 logger = logging.getLogger()
 logger.setLevel(logging.DEBUG)
 db = Database()
+UTC_TIMEZONE = pytz.timezone("UTC")
+
+
+def manage_switch_power_seesion(
+    new_control_bit: str, device_id: str, switch_index: int, overflow_time: datetime
+) -> str:
+    db_queries = DatabaseQueries(device_id)
+    if new_control_bit == "0":
+        return db_queries.create_power_session(switch_index, overflow_time)
+    elif new_control_bit == "1":
+        return db_queries.complete_power_session(switch_index, overflow_time)
+    raise ValueError("Invalid control bit supplied")
 
 
 def power_session_queries(
@@ -31,6 +43,41 @@ def power_session_queries(
     return update_queries
 
 
+def collect_resolve_series_timers(device_id: str, control_bits: str, series_timer_states: str):
+    power_session_sqls = []
+    new_control_bits = ""
+    for index, timer_state in enumerate(series_timer_states):
+        if timer_state == "1":
+            (new_control_bits, power_sql) = handle_series_timer(control_bits[index], device_id, index)
+            power_session_sqls.append(power_sql)
+        else:
+            new_control_bits += control_bits[index]
+    return new_control_bits, power_session_sqls
+
+
+
+def handle_series_timer(old_control_bit: str, device_id: str, switch_index: int):
+    new_control_bit = "-1"
+    db_queries = DatabaseQueries(device_id)
+    sql = db_queries.get_series_timer_states(switch_index)
+    result = db.run_qry(sql)[0]
+    power_session_sqls = []
+    series_timers_info: list[dict] = json.loads(result["timer_info"])
+    for timer_info in series_timers_info:
+        if timer_info.get("overflowed", False):
+            new_control_bit = old_control_bit
+
+        overflow_time: datetime = UTC_TIMEZONE.localize(result["timer_overflow_time"])
+        current_utc_time = UTC_TIMEZONE.localize(datetime.utcnow())
+
+        if current_utc_time >= overflow_time:
+            new_control_bit = "0" if result["desired_sttate"] == "ON" else "1"
+            power_session_sqls.append(
+                manage_switch_power_seesion(new_control_bit, device_id, switch_index, overflow_time)
+            )
+
+    return new_control_bit, power_session_sqls
+
 def get_device_control_bits(device_id: str):
     # This sql statemate is to collect `power_supply` `clear wifi` etc
     db_queries = DatabaseQueries(device_id)
@@ -47,11 +94,11 @@ def get_device_control_bits(device_id: str):
         return "1" * len(result["control_bits"])
 
     timer_flag = False
+    series_timer_flag = False
     # This sql is to collect timers data and handshake_times from esp8266 hardware
     sql = db_queries.get_handshakes_timer_states()
     timer_result = db.run_qry(sql)[0]
     timezone = pytz.timezone(timer_result["timezone"])
-    utc_timezone = pytz.timezone("UTC")
 
     # update hardware handshake time
     sql = db_queries.update_hardware_handshake_time(timezone)
@@ -62,20 +109,28 @@ def get_device_control_bits(device_id: str):
         if timer_state == "1":
             timer_flag = True
             break
-        else:
-            continue
 
-    if not timer_flag:
+    for series_timer_state in result["series_timer_states"]:
+        if series_timer_state == "1":
+            series_timer_flag = True
+            break
+
+    if not (timer_flag or series_timer_flag):
         return result["control_bits"]
 
     timer_states = timer_result["timer_states"]
     control_bits = timer_result["control_bits"]
-    current_time = datetime.now(timezone)
     new_control_bits = ""
     new_timer_states = ""
     power_start_switches: dict = {}
     power_end_switches: dict = {}
 
+    if series_timer_flag:
+        control_bits, series_timer_power_session_sqls = collect_resolve_series_timers(
+            device_id, control_bits, result["series_timer_states"]
+        )
+
+    current_time = datetime.now(timezone)
     timer_overflowed = False
     for i in range(len(control_bits)):
         trigger_time = timer_result[f"time_{i}"]
@@ -101,14 +156,14 @@ def get_device_control_bits(device_id: str):
         if control_bits[i] == "0":
             power_end_switches[device_id + "_" + str(i)] = (
                 timezone.localize(trigger_time)
-                .astimezone(utc_timezone)
+                .astimezone(UTC_TIMEZONE)
                 .strftime("%Y-%m-%d %H:%M:%S")
             )
             new_control_bits += "1"
         else:
             power_start_switches[device_id + "_" + str(i)] = (
                 timezone.localize(trigger_time)
-                .astimezone(utc_timezone)
+                .astimezone(UTC_TIMEZONE)
                 .strftime("%Y-%m-%d %H:%M:%S")
             )
             new_control_bits += "0"
@@ -124,6 +179,7 @@ def get_device_control_bits(device_id: str):
             new_timer_states,
             power_start_switches,
             power_end_switches,
+            series_timer_power_session_sqls
         )
 
     return new_control_bits
@@ -136,6 +192,7 @@ def power_session_manager(
     new_timer_states,
     power_start_switches,
     power_end_switches,
+    series_timer_power_sql
 ):
     power_session_sqls = []
     if power_start_switches:
@@ -150,8 +207,9 @@ def power_session_manager(
         # updating all power sessions after timer overflows
         # no need to collect the result as all are `UPDATE` queries
     logger.debug(power_session_sqls)
+
     if power_session_sqls:
-        db.run_multiple_queries(power_session_sqls)
+        db.run_multiple_queries(power_session_sqls + series_timer_power_sql)
 
         # clear timer overflows after correcting the power sessions
     sql = db_queries.update_after_timer_overflow(new_control_bits, new_timer_states)
