@@ -78,7 +78,7 @@ class DatabaseQueries:
     @sql_formate
     def update_series_timer_info(cls, device_id: str, switch_index: int, timer_info: list[dict]):
         return f"""
-        UPDATE `device_series_timers` SET `timer_info` = {json.dumps(timer_info)},
+        UPDATE `device_series_timers` SET `timer_info` = '{json.dumps(timer_info)}'
         WHERE `device_id` = '{device_id}' AND `switch_index` = {switch_index};
         """
 
