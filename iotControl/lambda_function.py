@@ -72,7 +72,7 @@ def handle_series_timer(old_control_bit: str, device_id: str, switch_index: int)
     for index, timer_info in enumerate(series_timers_info):
         if timer_info.get("overflowed", False):
             # new_control_bit = old_control_bit
-            all_timers_overflowed = False
+            # past timers which are stored
             continue
 
         overflow_date, overflow_time = timer_info["timer_overflow_time"].split(" ")
@@ -85,25 +85,30 @@ def handle_series_timer(old_control_bit: str, device_id: str, switch_index: int)
         logger.info(f"Overflow time {overflow_datetime}")
         logger.debug(current_utc_datetime >= overflow_datetime)
 
-        if current_utc_datetime >= overflow_datetime:
-            logger.info("timer overflowed")
-            overflow_flag = True
-            new_control_bit = "0" if timer_info["desired_state"] == "ON" else "1"
-            power_sql = manage_switch_power_seesion(
-                old_control_bit,
-                new_control_bit,
-                device_id,
-                switch_index,
-                overflow_datetime.astimezone(UTC_TIMEZONE).strftime(
-                    "%Y-%m-%d %H:%M:%S"
-                ),
-            )
-            if power_sql != None:
-                power_session_sqls.append(power_sql)
+        if overflow_datetime > current_utc_datetime:
+            all_timers_overflowed = False
+            continue
 
-            timer_info["overflowed"] = "true"
-            series_timers_info[index] = timer_info
-            old_control_bit = new_control_bit
+        # timer overflowed
+        logger.info("timer overflowed")
+        overflow_flag = True
+        new_control_bit = "0" if timer_info["desired_state"] == "ON" else "1"
+        power_sql = manage_switch_power_seesion(
+            old_control_bit,
+            new_control_bit,
+            device_id,
+            switch_index,
+            overflow_datetime.astimezone(UTC_TIMEZONE).strftime(
+                "%Y-%m-%d %H:%M:%S"
+            ),
+        )
+        if power_sql != None:
+            power_session_sqls.append(power_sql)
+
+        timer_info["overflowed"] = "true"
+        series_timers_info[index] = timer_info
+        old_control_bit = new_control_bit
+
 
     return (
         new_control_bit,
