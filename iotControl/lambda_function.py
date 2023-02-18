@@ -28,10 +28,11 @@ def manage_switch_power_seesion(
     overflow_time: str,
 ) -> str:
     db_queries = DatabaseQueries(device_id)
+    device_bit_id = f"{device_id}_{switch_index}"
     if old_control_bit == "1" and new_control_bit == "0":
-        return db_queries.create_power_session(switch_index, overflow_time)
+        return db_queries.create_power_session(device_bit_id, overflow_time)
     elif old_control_bit == "0" and new_control_bit == "1":
-        return db_queries.complete_power_session(switch_index, overflow_time)
+        return db_queries.complete_power_session(device_bit_id, overflow_time)
     # no need to create or complete power session
     return None
 
