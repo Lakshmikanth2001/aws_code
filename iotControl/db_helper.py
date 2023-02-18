@@ -48,8 +48,8 @@ class Database:
         # to check DB Connection pin the instance
         sql_connetion.ping()
         with sql_connetion.cursor() as cursor:
-            cursor.execute(sql_statements)
-            affected_rows = self.conn.commit()
+            affected_rows = cursor.execute(sql_statements)
+            self.conn.commit()
             logger.debug(
                 f"Number of affeted rows for {sql_statements} = {affected_rows}"
             )
