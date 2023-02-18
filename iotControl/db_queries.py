@@ -6,7 +6,7 @@ def sql_formate(method):
     def wrapper(*args, **kwargs):
         sql_string = method(*args, **kwargs)
         sql_string = sql_string.replace("\n", "")
-        return sql_string
+        return sql_string.strip()
 
     return wrapper
 
@@ -21,7 +21,7 @@ class DatabaseQueries:
         SELECT power_supply, clear_wifi, control_bits, timer_states, series_timer_states
         FROM `user_devices` LEFT JOIN `device_control`
         ON user_devices.id = device_control.owner_id
-        WHERE device_control.device_id = '{self.device_id}';"""
+        WHERE device_control.device_id = '{self.device_id}'"""
 
     @sql_formate
     def get_handshakes_timer_states(self) -> str:
@@ -29,7 +29,7 @@ class DatabaseQueries:
         SELECT * FROM `device_timers`
         RIGHT JOIN `device_control`
         ON device_timers.device_id = device_control.device_id
-        WHERE device_control.device_id = '{self.device_id}';
+        WHERE device_control.device_id = '{self.device_id}'
         """
 
     @sql_formate
@@ -47,7 +47,7 @@ class DatabaseQueries:
         LEFT JOIN `device_control`
         ON user_devices.id = device_control.owner_id
         SET `clear_wifi` = false
-        WHERE `device_id` = '{self.device_id}';"""
+        WHERE `device_id` = '{self.device_id}'"""
 
     @sql_formate
     def update_hardware_handshake_time(self, timezone) -> str:
@@ -63,23 +63,27 @@ class DatabaseQueries:
         return f"""
         UPDATE `device_control` SET `control_bits` = '{new_control_bits}',
         `timer_states` = '{new_timer_states}'
-        WHERE `device_id` = '{self.device_id}';
+        WHERE `device_id` = '{self.device_id}'
         """
 
     @sql_formate
-    def update_after_series_timer_overflow(self, new_control_bits: str, new_series_timer_states: str) -> str:
+    def update_after_series_timer_overflow(
+        self, new_control_bits: str, new_series_timer_states: str
+    ) -> str:
         return f"""
         UPDATE `device_control` SET `control_bits` = '{new_control_bits}',
         `series_timer_states` = '{new_series_timer_states}'
-        WHERE `device_id` = '{self.device_id}';
+        WHERE `device_id` = '{self.device_id}'
         """
 
     @classmethod
     @sql_formate
-    def update_series_timer_info(cls, device_id: str, switch_index: int, timer_info: list[dict]):
+    def update_series_timer_info(
+        cls, device_id: str, switch_index: int, timer_info: list[dict]
+    ):
         return f"""
         UPDATE `device_series_timers` SET `timer_info` = '{json.dumps(timer_info)}'
-        WHERE `device_id` = '{device_id}' AND `switch_index` = {switch_index};
+        WHERE `device_id` = '{device_id}' AND `switch_index` = {switch_index}
         """
 
     @sql_formate

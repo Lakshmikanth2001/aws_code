@@ -14,6 +14,7 @@ class Database:
         "user": os.environ["RDS_USER"],
         "password": os.environ["RDS_PASSWORD"],
         "database": os.environ["RDS_DATABASE"],
+        "autocommit": True,  # making sure updated, inserts, deletions are commited for every query
         "cursorclass": pymysql.cursors.DictCursor,
     }
 
@@ -48,7 +49,9 @@ class Database:
         sql_connetion.ping()
         with sql_connetion.cursor() as cursor:
             cursor.execute(sql_statements)
-            self.conn.commit()
+            affected_rows = self.conn.commit()
+            logger.debug(
+                f"Number of affeted rows for {sql_statements} = {affected_rows}"
+            )
             result = cursor.fetchall()
-        logging.debug(f"[SQL_MULTI]: {result}")
         return result
