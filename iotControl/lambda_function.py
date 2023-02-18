@@ -147,7 +147,7 @@ def collect_resolve_series_timers(
             )
         )
         new_control_bits += new_control_bit
-        power_session_sqls.append(power_sqls)
+        power_session_sqls.extend(power_sqls)
 
         # clear the series timer
         if all_timers_overflowed:
@@ -182,8 +182,8 @@ def get_device_control_bits(device_id: str):
     series_timer_flag = False
     # This sql is to collect timers data and handshake_times from esp8266 hardware
     sql = db_queries.get_handshakes_timer_states()
-    timer_result = db.run_qry(sql)[0]
-    timezone = pytz.timezone(timer_result["timezone"])
+    device_control_timer_info = db.run_qry(sql)[0]
+    timezone = pytz.timezone(device_control_timer_info["timezone"])
 
     # update hardware handshake time
     sql = db_queries.update_hardware_handshake_time(timezone)
@@ -203,8 +203,8 @@ def get_device_control_bits(device_id: str):
     if not (timer_flag or series_timer_flag):
         return result["control_bits"]
 
-    timer_states = timer_result["timer_states"]
-    control_bits = timer_result["control_bits"]
+    timer_states = device_control_timer_info["timer_states"]
+    control_bits = device_control_timer_info["control_bits"]
     new_control_bits = ""
     new_timer_states = ""
     series_timer_overflowed_flag = False
@@ -226,7 +226,7 @@ def get_device_control_bits(device_id: str):
     current_time = datetime.now(timezone)
     timer_overflowed = False
     for i in range(len(control_bits)):
-        trigger_time = timer_result[f"time_{i}"]
+        trigger_time = device_control_timer_info[f"time_{i}"]
 
         if not (timer_states[i] == "1" and trigger_time != None):
             new_control_bits += control_bits[i]
