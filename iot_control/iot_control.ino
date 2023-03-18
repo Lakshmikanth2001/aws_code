@@ -21,7 +21,7 @@
 #define ISW4 10
 
 #define DEVICE_ID "600"
-#define WIFI_DOWN_COUNTER_OVERFLOW 200000
+#define RECONNECTION_DELAY 1200
 #define REQUEST_DELAY 200
 
 const String cloud_url = "https://tfesgx8tv3.execute-api.us-east-2.amazonaws.com/Production/control/";
@@ -34,9 +34,10 @@ String api_finger_print = "-1";
 bool register_mac_id = false;
 // id - label - default value - length
 WiFiManager wm; // to configure wifi from 192.168.4.1 by default
-bool openWebPortal = false;
+// Indicates whether ESP has WiFi credentials saved from previous session
+bool initialConfig = false;
 int global_http_code = 0;
-int wifiDownCounter = WIFI_DOWN_COUNTER_OVERFLOW;
+int reconnection_delay_upcounter = 0;
 
 String make_get_request(std::unique_ptr<BearSSL::WiFiClientSecure> &client, String url, String parameters)
 {
@@ -135,8 +136,9 @@ String fetch_finger_print(std::unique_ptr<BearSSL::WiFiClientSecure> &client, St
 void setup()
 {
 
+    int reconnection_response = 0;
     Serial.begin(115200);
-    // Serial.setDebugOutput(true);
+    Serial.setDebugOutput(true);
 
     pinMode(SW1, OUTPUT);
     pinMode(SW2, OUTPUT);
@@ -158,6 +160,35 @@ void setup()
         delay(1000);
     }
 
+    if (WiFi.SSID() == "")
+    {
+        Serial.println("We haven't got any access point credentials, so get them now");
+        initialConfig = true;
+    }
+    else
+    {
+        WiFi.mode(WIFI_STA); // configure wifi in station mode
+
+        Serial.println("Previous WiFi SSID " + WiFi.SSID());
+
+        WiFi.begin(WiFi.SSID(), WiFi.psk());
+
+        int up_counter = 0;
+
+        while(up_counter < RECONNECTION_DELAY){
+            if (WiFi.status() == WL_CONNECTED)
+            {
+                Serial.print("Connected to router with IP: ");
+                Serial.println(WiFi.localIP());
+                return;
+            }
+            up_counter++;
+            delay(100);
+        }
+    }
+
+    Serial.println("failed to connect, finishing WiFi setup anyway");
+
     WiFi.mode(WIFI_STA); // configure wifi in station mode
 
     wm.setAPStaticIPConfig(IPAddress(80, 80, 80, 1), IPAddress(80, 80, 80, 1), IPAddress(255, 255, 255, 0));
@@ -169,25 +200,25 @@ void setup()
 
     // inject css
     const char *css = " \
-        <style> \
-        body {\
-            color: white;\
-            background: #232526;\
-            background: -webkit-linear-gradient(to right,\
-                    #414345,\
-                    #232526);\
-            background: linear-gradient(to right,\
-                    #414345,\
-                    #232526);\
-        }\
-        a {\
-            color:white\
-        }\
-        .logo{\
-            margin:15px;\
-        }\
-        </style>\
-    ";
+            <style> \
+            body {\
+                color: white;\
+                background: #232526;\
+                background: -webkit-linear-gradient(to right,\
+                        #414345,\
+                        #232526);\
+                background: linear-gradient(to right,\
+                        #414345,\
+                        #232526);\
+            }\
+            a {\
+                color:white\
+            }\
+            .logo{\
+                margin:15px;\
+            }\
+            </style>\
+        ";
     wm.setCustomHeadElement(css);
     // commet it our during production
     // wm.resetSettings();
@@ -220,6 +251,8 @@ void loop()
 {
     if ((WiFi.status() == WL_CONNECTED))
     {
+        // make recoonection_delay_counter = 0 as we are now conneted to a network
+        reconnection_delay_upcounter = 0;
         // client->setFingerprint(fingerprint);
         // Or, if you happy to ignore the SSL certificate, then use the following line instead:
         // client->setInsecure();
@@ -296,7 +329,7 @@ void loop()
                 else if (response[i] == '0' && external_bits[i] == LOW)
                 {
                     // pass this condition
-                    // external power supply is cut down
+                    // external power supply is cut
                 }
                 else
                 {
@@ -307,34 +340,25 @@ void loop()
         else
         {
             Serial.println("[ERROR] HTTP code: " + String(global_http_code));
-            for (int i = 0; i < response.length(); i++)
-            {
-                // make all digital pins low if there is any error on the server side
-                digitalWrite(switches[i], LOW);
+            if(global_http_code < 0){
+                // network issue
+                Serial.println("[HTTPError]: " + String(global_http_code));
             }
-            // turn on the internal led if there is any error on the server side
-            digitalWrite(LED_BUILTIN, LOW);
+            else{
+                for (int i = 0; i < response.length(); i++)
+                {
+                    // make all digital pins low if there is any error on the server side
+                    digitalWrite(switches[i], LOW);
+                }
+                // turn on the internal led if there is any error on the server side
+                digitalWrite(LED_BUILTIN, LOW);
+            }
         }
     }
-    else
-    {
-        if (!openWebPortal && wifiDownCounter > 0)
-        {
-            Serial.println("Dissconnected to Current Wifi");
-            delay(100);
-            wifiDownCounter--;
-        }
-        else if (wifiDownCounter == 0)
-        {
-            openWebPortal = true;
-            wifiDownCounter = WIFI_DOWN_COUNTER_OVERFLOW;
-        }
-        else
-        {
-            openWebPortal = false;
-            Serial.println("Reseting Wifi Credentials");
-            // clear out wifi credentials
-            wm.resetSettings();
+    else{
+        reconnection_delay_upcounter++;
+        Serial.println("Disconnected from wifi");
+        if(reconnection_delay_upcounter >= RECONNECTION_DELAY){
             ESP.restart();
         }
     }
