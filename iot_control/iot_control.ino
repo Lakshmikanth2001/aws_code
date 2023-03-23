@@ -9,6 +9,47 @@
 // Fingerprint for demo URL, expires on June 2, 2021, needs to be updated well before this date
 // const uint8_t fingerprint[20] = {0x40, 0xaf, 0x00, 0x6b, 0xec, 0x90, 0x22, 0x41, 0x8e, 0xa3, 0xad, 0xfa, 0x1a, 0xe8, 0x25, 0x41, 0x1d, 0x1a, 0x54, 0xb3};
 
+// Root certificate for teraiot.in
+// const char TERAIOT_ROOT [] PROGMEM = R"CERT(
+// -----BEGIN CERTIFICATE-----
+// MIIF9zCCBN+gAwIBAgIQBCp+Jd6bWJbAX2qhqLklrjANBgkqhkiG9w0BAQsFADA8
+// MQswCQYDVQQGEwJVUzEPMA0GA1UEChMGQW1hem9uMRwwGgYDVQQDExNBbWF6b24g
+// UlNBIDIwNDggTTAxMB4XDTIzMDMxNTAwMDAwMFoXDTIzMDczMDIzNTk1OVowMDEu
+// MCwGA1UEAwwlKi5leGVjdXRlLWFwaS51cy1lYXN0LTIuYW1hem9uYXdzLmNvbTCC
+// ASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAPKcEGmOj0r1iw650IghA2e/
+// UOnfTbCdZaNUsHlSD1cRpDL7ZobXUYD41pQNpgJuafcGhQQDz0jHXvkRMbXgBltq
+// n6tGm7zAwL4ZKBaXZNuEdXGf1NjLVGxHv/8tQB2PAU+eM09dvIGzO/zluqlnjG6L
+// R6xuyufbC/5EDFopnih+L5nDEgNVPhfeqCo8nd5dc49wj9dH5Mht3uIHc2G6Np8x
+// sYWjHdrjbVPVd4tXCvhVvn3BduMKr9jyovPQG116rxl9KBw3ZNdJWP4RWW2RwT0W
+// XYa5SbLyZH3v+3j1Oz8YzHJX2D6I0dxsXkYvD/+PiBA4b1iEi4XK1UH2ijJwBXsC
+// AwEAAaOCAv8wggL7MB8GA1UdIwQYMBaAFIG4DmOKiRIY5fo7O1CVn+blkBOFMB0G
+// A1UdDgQWBBTG3aEnSIUxjJUKzIC8sBKhi1dWzjAwBgNVHREEKTAngiUqLmV4ZWN1
+// dGUtYXBpLnVzLWVhc3QtMi5hbWF6b25hd3MuY29tMA4GA1UdDwEB/wQEAwIFoDAd
+// BgNVHSUEFjAUBggrBgEFBQcDAQYIKwYBBQUHAwIwOwYDVR0fBDQwMjAwoC6gLIYq
+// aHR0cDovL2NybC5yMm0wMS5hbWF6b250cnVzdC5jb20vcjJtMDEuY3JsMBMGA1Ud
+// IAQMMAowCAYGZ4EMAQIBMHUGCCsGAQUFBwEBBGkwZzAtBggrBgEFBQcwAYYhaHR0
+// cDovL29jc3AucjJtMDEuYW1hem9udHJ1c3QuY29tMDYGCCsGAQUFBzAChipodHRw
+// Oi8vY3J0LnIybTAxLmFtYXpvbnRydXN0LmNvbS9yMm0wMS5jZXIwDAYDVR0TAQH/
+// BAIwADCCAX8GCisGAQQB1nkCBAIEggFvBIIBawFpAHcA6D7Q2j71BjUy51covIlr
+// yQPTy9ERa+zraeF3fW0GvW4AAAGG52VYlQAABAMASDBGAiEAv3BK5EMteabcgwJ+
+// TL2epY3KyBLPC3yB3kU+wFSz0B8CIQCbE7jpLGOqXc6TT57iMQeCU69pIDjVd1K4
+// uX/dZMliJAB2ALNzdwfhhFD4Y4bWBancEQlKeS2xZwwLh9zwAw55NqWaAAABhudl
+// WL4AAAQDAEcwRQIgIbvrfRMxRtkJ6gZjoxlJD5bnMizcfshjv2a1ZUKnzHUCIQC9
+// JLeLd1toR/F/90ca2IdvCNM2u/iHUS0C3462vlmJXAB2ALc++yTfnE26dfI5xbpY
+// 9Gxd/ELPep81xJ4dCYEl7bSZAAABhudlWHQAAAQDAEcwRQIgAJFLcu3MIIR4tJb+
+// aqsCBn74he2OSDhvYJtX1gkZfNoCIQDh+Cq7W3U4x0mPDTPj3V6UkPlLu4o6SDGu
+// VZHhwJGL5zANBgkqhkiG9w0BAQsFAAOCAQEAhphybwIFk/ed3QmkmAN40ir4Eg0F
+// J+ULXvt7paotE96bQ5plgD7rztUB26aNlucSyVEQetvcuyALxk2LC65qFs6A+WIS
+// iGy+f3EU6v3OZ0W7aVcWMCI0ikemCkfYkKTQjyoIxtNS3t4eaV7uEoImCulCXr9u
+// AME3PsN4ETiIM/7zfceyldjOaiSYgXj1WuK6Hde0xa8OElqA6L9LwRez0GNlA3gk
+// GZbaPuPzr9ilHByq7jxVFqi8feE6K3lHn0Opypkx4mkhbk58X7lfDLcT1phkdF+y
+// a7GRpwSE/TWB586ynxpGiRBghc/Yei3SToH+9BMjX/rYvAn9Lz9WGAhhDw==
+// -----END CERTIFICATE-----
+// )CERT";
+
+// // Create a list of certificates with the server certificate
+// X509List cert(TERAIOT_ROOT);
+
 #define SW1 D1
 #define SW2 D2
 #define SW3 D5
@@ -20,7 +61,7 @@
 #define ISW3 9
 #define ISW4 10
 
-#define DEVICE_ID "600"
+#define DEVICE_ID "800"
 #define RECONNECTION_DELAY 1200
 #define REQUEST_DELAY 200
 
@@ -57,7 +98,7 @@ String make_get_request(std::unique_ptr<BearSSL::WiFiClientSecure> &client, Stri
         }
         else
         {
-            Serial.printf("[HTTPS] GET Request failed, error code %d\n", httpCode);
+            Serial.printf("[HTTPS] GET Request failed, error code %d => %s \n", httpCode, https.errorToString(httpCode).c_str());
             response = "[HTTPS] GET Request failed";
         }
     }
@@ -91,7 +132,7 @@ String make_post_request(std::unique_ptr<BearSSL::WiFiClientSecure> &client, Str
         }
         else
         {
-            Serial.printf("[HTTPS] POST Request failed, error code %d\n", httpCode);
+            Serial.printf("[HTTPS] POST Request failed, error code %d => %s \n", httpCode, https.errorToString(httpCode).c_str());
             response = "[HTTPS] POST Request failed";
         }
     }
@@ -234,6 +275,25 @@ void setup()
     {
         // if you get here you have connected to the WiFi
         Serial.println("connected to you local WiFi :");
+
+        // Set time via NTP, as required for x.509 validation
+        // configTime(3 * 3600, 0, "pool.ntp.org", "time.nist.gov");
+
+        // Serial.print("Waiting for NTP time sync: ");
+        // time_t now = time(nullptr);
+
+        // while (now < 8 * 3600 * 2) {
+        //   delay(500);
+        //   Serial.print(".");
+        //   now = time(nullptr);
+        // }
+        // Serial.println("");
+
+        // struct tm timeinfo;
+        // gmtime_r(&now, &timeinfo);
+
+        // Serial.print("Current time: ");
+        // Serial.print(asctime(&timeinfo));
     }
 }
 
@@ -260,6 +320,7 @@ void loop()
         HTTPClient https;
         String parameters = device_id + "?hardware=esp8266";
         std::unique_ptr<BearSSL::WiFiClientSecure> http_client(new BearSSL::WiFiClientSecure);
+        // http_client->setTrustAnchors(&cert);
 
         if (api_finger_print == "-1")
         {
