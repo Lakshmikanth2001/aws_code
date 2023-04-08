@@ -11,6 +11,11 @@ def sql_formate(method):
 
     return wrapper
 
+def get_date(date_str: str, time_str: str):
+    date = list(map(int, date_str.split("-")))
+    time = list(map(int, time_str.split(":")))
+    return datetime(*date, *time)
+
 
 class DatabaseQueries:
     def __init__(self, device_id) -> None:
@@ -55,7 +60,9 @@ class DatabaseQueries:
         current_time = datetime.now(timezone)
         if handshake_collection != None:
             handshake_collection = json.loads(handshake_collection)
-            last_handshake_time: datetime = timezone.localize(handshake_collection[-1])
+            handshake_date, handshake_time = handshake_collection[-1].split(" ")
+            last_handshake_time: datetime = get_date(handshake_date, handshake_time)
+            last_handshake_time = timezone.localize(last_handshake_time)
             print(last_handshake_time, current_time, sep="\n")
             if current_time - last_handshake_time > timedelta(seconds=10):
                 handshake_collection.append(str(current_time))
