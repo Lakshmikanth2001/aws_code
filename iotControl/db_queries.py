@@ -63,11 +63,10 @@ class DatabaseQueries:
             handshake_date, handshake_time = handshake_collection[-1].split(" ")
             last_handshake_time: datetime = get_date(handshake_date, handshake_time)
             last_handshake_time = timezone.localize(last_handshake_time)
-            print(last_handshake_time, current_time, sep="\n")
             if current_time - last_handshake_time > timedelta(seconds=10):
-                handshake_collection.append(str(current_time))
+                handshake_collection.append(current_time.strftime("%Y-%m-%d %H:%M:%S"))
         else:
-            handshake_collection = [str(current_time)]
+            handshake_collection = [current_time.strftime("%Y-%m-%d %H:%M:%S")]
 
         return f"""UPDATE `device_control`
         SET `handshake_time` = '{current_time.strftime("%Y-%m-%d %H:%M:%S")}',
