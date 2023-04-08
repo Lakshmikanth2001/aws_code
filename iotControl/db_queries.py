@@ -56,6 +56,7 @@ class DatabaseQueries:
         if handshake_collection != None:
             handshake_collection = json.loads(handshake_collection)
             last_handshake_time: datetime = timezone.localize(handshake_collection[-1])
+            print(last_handshake_time, current_time, sep="\n")
             if current_time - last_handshake_time > timedelta(seconds=10):
                 handshake_collection.append(str(current_time))
         else:
