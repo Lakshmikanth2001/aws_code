@@ -186,9 +186,10 @@ def get_device_control_bits(device_id: str):
     sql = db_queries.get_handshakes_timer_states()
     device_control_timer_info = db.run_qry(sql)[0]
     timezone = pytz.timezone(device_control_timer_info["timezone"])
+    handshake_collection = device_control_timer_info["handshake_collection"]
 
     # update hardware handshake time
-    sql = db_queries.update_hardware_handshake_time(timezone)
+    sql = db_queries.update_hardware_handshake_time(timezone, handshake_collection)
     db.run_qry(sql)
     # no need to collect result for UPDATE query
 

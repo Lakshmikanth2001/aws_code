@@ -1,5 +1,6 @@
 import json
 from datetime import datetime
+from datetime import timedelta
 
 
 def sql_formate(method):
@@ -50,10 +51,19 @@ class DatabaseQueries:
         WHERE `device_id` = '{self.device_id}'"""
 
     @sql_formate
-    def update_hardware_handshake_time(self, timezone) -> str:
+    def update_hardware_handshake_time(self, timezone, handshake_collection) -> str:
         current_time = datetime.now(timezone)
+        if handshake_collection != None:
+            handshake_collection = json.loads(handshake_collection)
+            last_handshake_time: datetime = timezone.localize(handshake_collection[-1])
+            if current_time - last_handshake_time > timedelta(seconds=10):
+                handshake_collection.append(str(current_time))
+        else:
+            handshake_collection = [str(current_time)]
+
         return f"""UPDATE `device_control`
-        SET `handshake_time` = '{current_time.strftime("%Y-%m-%d %H:%M:%S")}'
+        SET `handshake_time` = '{current_time.strftime("%Y-%m-%d %H:%M:%S")}',
+        `handshake_collection` = '{json.dumps(handshake_collection)}'
         WHERE `device_id` = '{self.device_id}'"""
 
     @sql_formate
