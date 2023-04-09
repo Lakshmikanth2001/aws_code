@@ -1,7 +1,9 @@
 import json
 from datetime import datetime
+from typing import Union
 from datetime import timedelta
 
+COLLECTION_DELAY = 1800
 
 def sql_formate(method):
     def wrapper(*args, **kwargs):
@@ -56,14 +58,16 @@ class DatabaseQueries:
         WHERE `device_id` = '{self.device_id}'"""
 
     @sql_formate
-    def update_hardware_handshake_time(self, timezone, handshake_collection) -> str:
+    def update_hardware_handshake_time(self, timezone, handshake_collection: Union[list, None]) -> str:
         current_time = datetime.now(timezone)
         if handshake_collection != None:
             handshake_collection = json.loads(handshake_collection)
             handshake_date, handshake_time = handshake_collection[-1].split(" ")
+
             last_handshake_time: datetime = get_date(handshake_date, handshake_time)
             last_handshake_time = timezone.localize(last_handshake_time)
-            if current_time - last_handshake_time > timedelta(seconds=10):
+
+            if current_time - last_handshake_time > timedelta(seconds=COLLECTION_DELAY):
                 handshake_collection.append(current_time.strftime("%Y-%m-%d %H:%M:%S"))
         else:
             handshake_collection = [current_time.strftime("%Y-%m-%d %H:%M:%S")]
