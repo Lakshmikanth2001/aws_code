@@ -6,7 +6,7 @@ import pymysql
 from datetime import date
 from datetime import datetime
 from db_helper import Database
-from db_queries import DatabaseQueries
+from db_queries import DatabaseQueries, get_date
 from data_types import DeviceControlType
 
 logger = logging.getLogger()
@@ -208,6 +208,7 @@ def get_device_control_bits(device_id: str):
 
     timer_states = device_control_timer_info["timer_states"]
     control_bits = device_control_timer_info["control_bits"]
+    overflow_timer_info : list[str] = device_control_timer_info["timer_info"]
     new_control_bits = ""
     new_timer_states = ""
     series_timer_overflowed_flag = False
@@ -228,8 +229,10 @@ def get_device_control_bits(device_id: str):
 
     current_time = datetime.now(timezone)
     timer_overflowed = False
-    for i in range(len(control_bits)):
-        trigger_time = device_control_timer_info[f"time_{i}"]
+    for i, trigger_time_str in enumerate(overflow_timer_info):
+        # trigger_time = device_control_timer_info[f"time_{i}"]
+        date_str, time_str = trigger_time_str.split(" ")
+        trigger_time = get_date(date_str, time_str)
 
         if not (timer_states[i] == "1" and trigger_time != None):
             new_control_bits += control_bits[i]
