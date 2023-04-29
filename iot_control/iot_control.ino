@@ -15,7 +15,7 @@
 #define ISW3 9
 #define ISW4 10
 
-#define DEVICE_ID "600"
+#define DEVICE_ID "800"
 #define RECONNECTION_DELAY 1200
 #define REQUEST_DELAY 200
 
