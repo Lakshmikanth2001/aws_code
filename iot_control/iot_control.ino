@@ -15,6 +15,9 @@
 #define ISW3 9
 #define ISW4 10
 
+// External RESET
+#define EX_RST D3
+
 #define DEVICE_ID "800"
 #define RECONNECTION_DELAY 1200
 #define REQUEST_DELAY 200
@@ -137,6 +140,7 @@ void setup()
     pinMode(SW2, OUTPUT);
     pinMode(SW3, OUTPUT);
     pinMode(SW4, OUTPUT);
+    pinMode(EX_RST, INPUT);
     pinMode(LED_BUILTIN, OUTPUT);
 
     pinMode(ISW1, INPUT);
@@ -165,14 +169,24 @@ void setup()
 
         WiFi.begin(WiFi.SSID(), WiFi.psk());
 
+        Serial.println("Trying for previous WiFi : " + WiFi.SSID());
+
         while(true){
-            if (WiFi.status() == WL_CONNECTED)
+            int wiFiStatus = WiFi.status();
+            if (wiFiStatus == WL_CONNECTED)
             {
                 Serial.print("Connected to router with IP: ");
                 Serial.println(WiFi.localIP());
                 return;
             }
-            Serial.println("Trying for previous WiFi : " + WiFi.SSID());
+            if (wiFiStatus == WL_WRONG_PASSWORD){
+                Serial.print(WiFi.SSID() + " password is changed so re-enter credentials ");
+                break;
+            }
+            if(digitalRead(EX_RST) == LOW){
+                Serial.println("EX_RST PIN TRIGGERED");
+                break;
+            }
             delay(100);
         }
     }
@@ -361,6 +375,10 @@ void loop()
                 digitalWrite(LED_BUILTIN, LOW);
             }
         }
+    }
+    else if(WiFi.status() == WL_WRONG_PASSWORD){
+        wm.resetSettings();
+        ESP.restart();
     }
     else{
         Serial.println("Disconnected from wifi");
