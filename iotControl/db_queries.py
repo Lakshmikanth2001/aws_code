@@ -5,6 +5,7 @@ from datetime import timedelta
 
 COLLECTION_DELAY = 1800
 
+
 def sql_formate(method):
     def wrapper(*args, **kwargs):
         sql_string = method(*args, **kwargs)
@@ -13,12 +14,16 @@ def sql_formate(method):
 
     return wrapper
 
+
 def get_date(date_str: str, time_str: str):
     date = list(map(int, date_str.split("-")))
     time = list(map(int, time_str.split(":")))
     return datetime(*date, *time)
 
-def build_sql_for_hardware_collection(device_id: str, current_time: datetime, handshake_collection: dict):
+
+def build_sql_for_hardware_collection(
+    device_id: str, current_time: datetime, handshake_collection: dict
+):
     return f"""UPDATE `device_control`
     SET `handshake_time` = '{current_time.strftime("%Y-%m-%d %H:%M:%S")}',
     `handshake_collection` = '{json.dumps(handshake_collection)}'
@@ -64,16 +69,22 @@ class DatabaseQueries:
         WHERE `device_id` = '{self.device_id}'"""
 
     @sql_formate
-    def update_hardware_handshake_time(self, timezone, handshake_collection: Union[str, None]) -> str:
+    def update_hardware_handshake_time(
+        self, timezone, handshake_collection: Union[str, None]
+    ) -> str:
         current_time = datetime.now(timezone)
         if handshake_collection is None:
-            return build_sql_for_hardware_collection(self.device_id, current_time, handshake_collection)
+            return build_sql_for_hardware_collection(
+                self.device_id, current_time, handshake_collection
+            )
 
         handshake_collection = json.loads(handshake_collection)
 
-        if len (handshake_collection) == 0:
+        if len(handshake_collection) == 0:
             handshake_collection = [current_time.strftime("%Y-%m-%d %H:%M:%S")]
-            return build_sql_for_hardware_collection(self.device_id, current_time, handshake_collection)
+            return build_sql_for_hardware_collection(
+                self.device_id, current_time, handshake_collection
+            )
 
         handshake_date, handshake_time = handshake_collection[-1].split(" ")
         last_handshake_time: datetime = get_date(handshake_date, handshake_time)
@@ -82,7 +93,9 @@ class DatabaseQueries:
         if current_time - last_handshake_time > timedelta(seconds=COLLECTION_DELAY):
             handshake_collection.append(current_time.strftime("%Y-%m-%d %H:%M:%S"))
 
-        return build_sql_for_hardware_collection(self.device_id, current_time, handshake_collection)
+        return build_sql_for_hardware_collection(
+            self.device_id, current_time, handshake_collection
+        )
 
     @sql_formate
     def update_after_timer_overflow(

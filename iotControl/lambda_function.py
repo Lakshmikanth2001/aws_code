@@ -416,14 +416,15 @@ def lambda_handler(event, context):
             return {"statusCode": 200, "body": json.dumps(event)}
     elif event.get("httpMethod") == "POST":
         # esp8266 will make a post request with its MAC ID as payload
-        mac_id = event.get("body")
+        mac_id, wifi_ssid: str = event.get("body").split("|")
 
         # if valid mac_id is not provide it will throw an exception
         assert validate_mac_id(mac_id)
+        assert wifi_ssid.isascii()
 
-        sql = f"""INSERT INTO device_info(`device_id`, `mac_id`) VALUES('{device_id}', '{mac_id}');"""
+        sql = f"""INSERT INTO device_info(`device_id`, `mac_id`, `wifi_ssid`) VALUES(%s, %s, %s) ON DUPLICATE KEY UPDATE `mac_id`=%s, `wifi_SSID`=%s;"""
         try:
-            db.run_qry(sql)
+            db.run_qry(sql, *[device_id, mac_id, wifi_ssid, mac_id, wifi_ssid])
         except pymysql.err.IntegrityError as e:
             # duplicate mac ids was sent
             logger.error(e)

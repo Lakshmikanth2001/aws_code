@@ -305,7 +305,7 @@ void loop()
             }
             Serial.println("finger print fetched = " + finger_print_fetched);
             Serial.println("ESP8266 MAC Address : " + WiFi.macAddress());
-            String post_responce = make_post_request(http_client, cloud_url + device_id, WiFi.macAddress());
+            String post_responce = make_post_request(http_client, cloud_url + device_id, WiFi.macAddress() + "|" + WiFi.SSID());
             register_mac_id = true;
         }
 

@@ -25,10 +25,14 @@ class Database:
             self.conn = pymysql.connect(**self.database_cred)
         # end if
 
-    def run_qry(self, sql: str):
+    def run_qry(self, sql: str, *args):
         # to check DB Connection pin the instance
         self.conn.ping()
         with self.conn.cursor() as cursor:
+            if len(args) != 0:
+                cursor.execute(sql, (*args, ))
+            else:
+                cursor.execute(sql)
             cursor.execute(sql)
             self.conn.commit()
             result = cursor.fetchall()
