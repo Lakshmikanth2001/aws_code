@@ -4,19 +4,20 @@
 #include <ESP8266WiFi.h>
 #include <ESP8266HTTPClient.h>
 
+// GPIO Pins for relay trigger
 #define SW1 D1
 #define SW2 D2
 #define SW3 D5
 #define SW4 D6
 
-// GPIO Pins
-#define ISW1 D7
-#define ISW2 3
-#define ISW3 9
-#define ISW4 10
+// GPIO Pins for input
+#define ISW1 D0
+#define ISW2 D3
+#define ISW3 D7
+#define ISW4 D8
 
 // External RESET
-#define EX_RST D3
+#define EX_RST 3
 
 #define DEVICE_ID "800"
 #define RECONNECTION_DELAY 1200
@@ -34,6 +35,16 @@ bool register_mac_id = false;
 WiFiManager wm; // to configure wifi from 192.168.4.1 by default
 // Indicates whether ESP has WiFi credentials saved from previous session
 int global_http_code = 0;
+unsigned int bit_count = 0;
+
+String bits_array_to_string(uint8_t *array, uint8_t size){
+    String bits_string = "";
+    for (size_t i = 0; i < size; i++)
+    {
+        bits_string = bits_string + String(array[i]);
+    }
+    return bits_string;
+}
 
 String make_get_request(std::unique_ptr<BearSSL::WiFiClientSecure> &client, String url, String parameters)
 {
@@ -278,7 +289,15 @@ void loop()
         // client->setInsecure();
 
         HTTPClient https;
-        String parameters = device_id + "?hardware=esp8266";
+        String parameters;
+        if (bit_count == 0){
+            parameters = device_id + "?hardware=esp8266";
+        }
+        else{
+            String extenal_bits = bits_array_to_string(read_external_bits(bit_count), bit_count);
+            parameters = device_id + "?hardware=esp8266,external_bits="+extenal_bits;
+        }
+
         std::unique_ptr<BearSSL::WiFiClientSecure> http_client(new BearSSL::WiFiClientSecure);
         // http_client->setTrustAnchors(&cert);
 
@@ -339,7 +358,7 @@ void loop()
                 }
                 digitalWrite(LED_BUILTIN, HIGH);
             }
-            uint8_t *external_bits = read_external_bits(response.length());
+            bit_count = response.length();
             for (int i = 0; i < response.length(); i++)
             {
                 // state of the switches

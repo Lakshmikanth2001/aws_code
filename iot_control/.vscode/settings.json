@@ -1,0 +1,8 @@
+{
+    "files.associations": {
+        "*.djt": "django-html",
+        "*.cpp": "cpp",
+        "*.jsx": "javascriptreact",
+        "string_view": "cpp"
+    }
+}

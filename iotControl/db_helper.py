@@ -30,7 +30,7 @@ class Database:
         self.conn.ping()
         with self.conn.cursor() as cursor:
             if len(args) != 0:
-                cursor.execute(sql, (*args, ))
+                cursor.execute(sql, (*args,))
             else:
                 cursor.execute(sql)
             cursor.execute(sql)

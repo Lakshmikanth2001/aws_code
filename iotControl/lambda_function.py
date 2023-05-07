@@ -21,6 +21,11 @@ def get_date(date_str: str, time_str: str):
     return datetime(*date, *time)
 
 
+def validate_control_bits(control_bits: str):
+    for bit in control_bits:
+        assert bit == "0" or bit == "1"
+
+
 def manage_switch_power_seesion(
     old_control_bit: str,
     new_control_bit: str,
@@ -165,7 +170,7 @@ def collect_resolve_series_timers(
     )
 
 
-def get_device_control_bits(device_id: str):
+def get_device_control_bits(device_id: str, external_bits: str):
     # This sql statemate is to collect `power_supply` `clear wifi` etc
     db_queries = DatabaseQueries(device_id)
     sql = db_queries.get_power_suply_status()
@@ -189,7 +194,9 @@ def get_device_control_bits(device_id: str):
     handshake_collection = device_control_timer_info["handshake_collection"]
 
     # update hardware handshake time
-    sql = db_queries.update_hardware_handshake_time(timezone, handshake_collection)
+    sql = db_queries.update_hardware_handshakes_external_bits(
+        timezone, handshake_collection, external_bits
+    )
     db.run_qry(sql)
     # no need to collect result for UPDATE query
 
@@ -208,7 +215,7 @@ def get_device_control_bits(device_id: str):
 
     timer_states = device_control_timer_info["timer_states"]
     control_bits = device_control_timer_info["control_bits"]
-    overflow_timer_info : list[str] = device_control_timer_info["timer_info"]
+    overflow_timer_info: list[str] = device_control_timer_info["timer_info"]
     new_control_bits = ""
     new_timer_states = ""
     series_timer_overflowed_flag = False
@@ -364,9 +371,11 @@ def get_response(event: dict, device_id: str):
     if event["queryStringParameters"].get("hardware") == "esp8266":
         # sql = f"""SELECT `control_bits` FROM `device_control` WHERE `device_id` = {device_id}"""
         # result = db.run_qry(sql)[0]
+        external_bits = event["queryStringParameters"].get("external_bits")
+        validate_control_bits(external_bits)
         return {
             "statusCode": 200,
-            "body": get_device_control_bits(device_id),
+            "body": get_device_control_bits(device_id, external_bits),
             "headers": {"content-type": "text/plain"},
         }
     elif event["queryStringParameters"].get("fetch") == "finger_print":
@@ -416,13 +425,13 @@ def lambda_handler(event, context):
             return {"statusCode": 200, "body": json.dumps(event)}
     elif event.get("httpMethod") == "POST":
         # esp8266 will make a post request with its MAC ID as payload
-        mac_id, wifi_ssid: str = event.get("body").split("|")
+        mac_id, wifi_ssid = event.get("body").split("|")
 
         # if valid mac_id is not provide it will throw an exception
         assert validate_mac_id(mac_id)
         assert wifi_ssid.isascii()
 
-        sql = f"""INSERT INTO device_info(`device_id`, `mac_id`, `wifi_ssid`) VALUES(%s, %s, %s) ON DUPLICATE KEY UPDATE `mac_id`=%s, `wifi_SSID`=%s;"""
+        sql = f"""INSERT INTO device_info(`device_id`, `mac_id`, `wifi_ssid`) VALUES(%s, %s, %s) ON DUPLICATE KEY UPDATE `mac_id`=%s, `wifi_ssid`=%s;"""
         try:
             db.run_qry(sql, *[device_id, mac_id, wifi_ssid, mac_id, wifi_ssid])
         except pymysql.err.IntegrityError as e:

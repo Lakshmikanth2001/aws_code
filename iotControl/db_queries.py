@@ -22,11 +22,15 @@ def get_date(date_str: str, time_str: str):
 
 
 def build_sql_for_hardware_collection(
-    device_id: str, current_time: datetime, handshake_collection: dict
+    device_id: str,
+    current_time: datetime,
+    handshake_collection: dict,
+    external_bits: str,
 ):
     return f"""UPDATE `device_control`
     SET `handshake_time` = '{current_time.strftime("%Y-%m-%d %H:%M:%S")}',
-    `handshake_collection` = '{json.dumps(handshake_collection)}'
+    `handshake_collection` = '{json.dumps(handshake_collection)}',
+    `external_power_supply` = {external_bits}
     WHERE `device_id` = '{device_id}'"""
 
 
@@ -69,8 +73,8 @@ class DatabaseQueries:
         WHERE `device_id` = '{self.device_id}'"""
 
     @sql_formate
-    def update_hardware_handshake_time(
-        self, timezone, handshake_collection: Union[str, None]
+    def update_hardware_handshakes_external_bits(
+        self, timezone, handshake_collection: Union[str, None], external_bits: str
     ) -> str:
         current_time = datetime.now(timezone)
         if handshake_collection is None:
@@ -83,7 +87,7 @@ class DatabaseQueries:
         if len(handshake_collection) == 0:
             handshake_collection = [current_time.strftime("%Y-%m-%d %H:%M:%S")]
             return build_sql_for_hardware_collection(
-                self.device_id, current_time, handshake_collection
+                self.device_id, current_time, handshake_collection, external_bits
             )
 
         handshake_date, handshake_time = handshake_collection[-1].split(" ")
@@ -94,7 +98,7 @@ class DatabaseQueries:
             handshake_collection.append(current_time.strftime("%Y-%m-%d %H:%M:%S"))
 
         return build_sql_for_hardware_collection(
-            self.device_id, current_time, handshake_collection
+            self.device_id, current_time, handshake_collection, external_bits
         )
 
     @sql_formate
