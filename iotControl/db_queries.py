@@ -1,10 +1,13 @@
 import json
+import logging
 from datetime import datetime
 from typing import Union
 from datetime import timedelta
 
 COLLECTION_DELAY = 1800
 
+logger = logging.getLogger()
+logger.setLevel(logging.DEBUG)
 
 def sql_formate(method):
     def wrapper(*args, **kwargs):
@@ -77,13 +80,12 @@ class DatabaseQueries:
         self, timezone, handshake_collection: Union[str, None], external_bits: str
     ) -> str:
         current_time = datetime.now(timezone)
-        if handshake_collection is None:
+        if handshake_collection is None or handshake_collection == 'null':
             return build_sql_for_hardware_collection(
-                self.device_id, current_time, handshake_collection, external_bits
+                self.device_id, current_time, None, external_bits
             )
 
         handshake_collection = json.loads(handshake_collection)
-
         if len(handshake_collection) == 0:
             handshake_collection = [current_time.strftime("%Y-%m-%d %H:%M:%S")]
             return build_sql_for_hardware_collection(
