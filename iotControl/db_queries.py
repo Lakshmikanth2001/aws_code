@@ -79,7 +79,7 @@ class DatabaseQueries:
         current_time = datetime.now(timezone)
         if handshake_collection is None:
             return build_sql_for_hardware_collection(
-                self.device_id, current_time, handshake_collection
+                self.device_id, current_time, handshake_collection, external_bits
             )
 
         handshake_collection = json.loads(handshake_collection)

@@ -372,7 +372,10 @@ def get_response(event: dict, device_id: str):
         # sql = f"""SELECT `control_bits` FROM `device_control` WHERE `device_id` = {device_id}"""
         # result = db.run_qry(sql)[0]
         external_bits = event["queryStringParameters"].get("external_bits")
-        validate_control_bits(external_bits)
+        if external_bits:
+            validate_control_bits(external_bits)
+        else:
+            external_bits = "-1"
         return {
             "statusCode": 200,
             "body": get_device_control_bits(device_id, external_bits),

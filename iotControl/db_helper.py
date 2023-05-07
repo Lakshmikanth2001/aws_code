@@ -30,10 +30,10 @@ class Database:
         self.conn.ping()
         with self.conn.cursor() as cursor:
             if len(args) != 0:
+                logger.debug(cursor.mogrify(sql, (*args, )))
                 cursor.execute(sql, (*args,))
             else:
                 cursor.execute(sql)
-            cursor.execute(sql)
             self.conn.commit()
             result = cursor.fetchall()
         # end with
