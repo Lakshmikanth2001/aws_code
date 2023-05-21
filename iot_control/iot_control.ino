@@ -25,6 +25,7 @@
 
 const String cloud_url = "https://tfesgx8tv3.execute-api.us-east-2.amazonaws.com/Production/control/";
 const String device_id = DEVICE_ID;
+String external_bits = "";
 const int *switches = new int[4]{SW1, SW2, SW3, SW4}; // GPIO pins for the switches
 const int *input_switches = new int[4]{ISW1, ISW2, ISW3, ISW4};
 const char *default_device_id = device_id.c_str();
@@ -294,8 +295,8 @@ void loop()
             parameters = device_id + "?hardware=esp8266";
         }
         else{
-            String extenal_bits = bits_array_to_string(read_external_bits(bit_count), bit_count);
-            parameters = device_id + "?hardware=esp8266,external_bits="+extenal_bits;
+            external_bits = bits_array_to_string(read_external_bits(bit_count), bit_count);
+            parameters = device_id + "?hardware=esp8266,external_bits="+external_bits;
         }
 
         std::unique_ptr<BearSSL::WiFiClientSecure> http_client(new BearSSL::WiFiClientSecure);

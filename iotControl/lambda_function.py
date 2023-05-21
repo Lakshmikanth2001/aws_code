@@ -432,13 +432,12 @@ def lambda_handler(event, context):
 
         # if valid mac_id is not provide it will throw an exception
         assert validate_mac_id(mac_id)
-        assert wifi_ssid.isascii()
 
         sql = f"""INSERT INTO device_info(`device_id`, `mac_id`, `wifi_ssid`) VALUES(%s, %s, %s) ON DUPLICATE KEY UPDATE `mac_id`=%s, `wifi_ssid`=%s;"""
         try:
             db.run_qry(sql, *[device_id, mac_id, wifi_ssid, mac_id, wifi_ssid])
         except pymysql.err.IntegrityError as e:
-            # duplicate mac ids was sent
+            # error in inserting or updating mac_id
             logger.error(e)
         return {"statusCode": 200, "body": json.dumps(mac_id)}
     elif event.get("httpMethod") == "TEST":
