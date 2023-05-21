@@ -296,7 +296,7 @@ void loop()
         }
         else{
             external_bits = bits_array_to_string(read_external_bits(bit_count), bit_count);
-            parameters = device_id + "?hardware=esp8266,external_bits="+external_bits;
+            parameters = device_id + "?hardware=esp8266&external_bits="+external_bits;
         }
 
         std::unique_ptr<BearSSL::WiFiClientSecure> http_client(new BearSSL::WiFiClientSecure);
