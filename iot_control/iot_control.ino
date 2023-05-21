@@ -11,23 +11,28 @@
 #define SW4 D6
 
 // GPIO Pins for input
-#define ISW1 D0
-#define ISW2 D3
+#define ISW1 D3
+#define ISW2 D4
 #define ISW3 D7
 #define ISW4 D8
 
 // External RESET
 #define EX_RST 3
+#define LED D0
 
 #define DEVICE_ID "800"
+#define SWITCH_COUNT 4
 #define RECONNECTION_DELAY 1200
 #define REQUEST_DELAY 200
 
 const String cloud_url = "https://tfesgx8tv3.execute-api.us-east-2.amazonaws.com/Production/control/";
 const String device_id = DEVICE_ID;
-String external_bits = "";
-const int *switches = new int[4]{SW1, SW2, SW3, SW4}; // GPIO pins for the switches
-const int *input_switches = new int[4]{ISW1, ISW2, ISW3, ISW4};
+String external_bits_string = "";
+
+const int *switches = new int[SWITCH_COUNT]{SW1, SW2, SW3, SW4}; // GPIO pins for the switches
+const int *input_switches = new int[SWITCH_COUNT]{ISW1, ISW2, ISW3, ISW4};
+uint8_t *external_bits = new uint8_t[SWITCH_COUNT]{HIGH, HIGH, HIGH, HIGH};
+
 const char *default_device_id = device_id.c_str();
 
 String api_finger_print = "-1";
@@ -38,7 +43,8 @@ WiFiManager wm; // to configure wifi from 192.168.4.1 by default
 int global_http_code = 0;
 unsigned int bit_count = 0;
 
-String bits_array_to_string(uint8_t *array, uint8_t size){
+String bits_array_to_string(uint8_t *array, uint8_t size)
+{
     String bits_string = "";
     for (size_t i = 0; i < size; i++)
     {
@@ -141,6 +147,14 @@ String fetch_finger_print(std::unique_ptr<BearSSL::WiFiClientSecure> &client, St
     return response;
 }
 
+IRAM_ATTR void read_external_bits()
+{
+    for (int i = 0; i < bit_count; i++)
+    {
+        external_bits[i] = digitalRead(input_switches[i]);
+    }
+}
+
 void setup()
 {
 
@@ -152,15 +166,18 @@ void setup()
     pinMode(SW2, OUTPUT);
     pinMode(SW3, OUTPUT);
     pinMode(SW4, OUTPUT);
+    pinMode(LED, OUTPUT);
     pinMode(EX_RST, INPUT);
-    pinMode(LED_BUILTIN, OUTPUT);
 
     pinMode(ISW1, INPUT);
     pinMode(ISW2, INPUT);
     pinMode(ISW3, INPUT);
     pinMode(ISW4, INPUT);
 
-    // pinMode(16, OUTPUT);
+    attachInterrupt(digitalPinToInterrupt(ISW1), read_external_bits, CHANGE);
+    attachInterrupt(digitalPinToInterrupt(ISW2), read_external_bits, CHANGE);
+    attachInterrupt(digitalPinToInterrupt(ISW3), read_external_bits, CHANGE);
+    attachInterrupt(digitalPinToInterrupt(ISW4), read_external_bits, CHANGE);
 
     for (uint8_t t = 4; t > 0; t--)
     {
@@ -183,7 +200,8 @@ void setup()
 
         Serial.println("Trying for previous WiFi : " + WiFi.SSID());
 
-        while(true){
+        while (true)
+        {
             int wiFiStatus = WiFi.status();
             if (wiFiStatus == WL_CONNECTED)
             {
@@ -191,11 +209,13 @@ void setup()
                 Serial.println(WiFi.localIP());
                 return;
             }
-            if (wiFiStatus == WL_WRONG_PASSWORD){
+            if (wiFiStatus == WL_WRONG_PASSWORD)
+            {
                 Serial.print(WiFi.SSID() + " password is changed so re-enter credentials ");
                 break;
             }
-            if(digitalRead(EX_RST) == LOW){
+            if (digitalRead(EX_RST) == LOW)
+            {
                 Serial.println("EX_RST PIN TRIGGERED");
                 break;
             }
@@ -270,16 +290,6 @@ void setup()
     }
 }
 
-uint8_t *read_external_bits(int bits_count)
-{
-    uint8_t *external_bits = new uint8_t[bits_count];
-    for (int i = 0; i < bits_count; i++)
-    {
-        external_bits[i] = digitalRead(input_switches[i]);
-    }
-    return external_bits;
-}
-
 void loop()
 {
     if ((WiFi.status() == WL_CONNECTED))
@@ -291,12 +301,14 @@ void loop()
 
         HTTPClient https;
         String parameters;
-        if (bit_count == 0){
+        if (bit_count == 0)
+        {
             parameters = device_id + "?hardware=esp8266";
         }
-        else{
-            external_bits = bits_array_to_string(read_external_bits(bit_count), bit_count);
-            parameters = device_id + "?hardware=esp8266&external_bits="+external_bits;
+        else
+        {
+            external_bits_string = bits_array_to_string(external_bits, bit_count);
+            parameters = device_id + "?hardware=esp8266&external_bits=" + external_bits_string;
         }
 
         std::unique_ptr<BearSSL::WiFiClientSecure> http_client(new BearSSL::WiFiClientSecure);
@@ -357,7 +369,6 @@ void loop()
                         digitalWrite(switches[i], LOW);
                     }
                 }
-                digitalWrite(LED_BUILTIN, HIGH);
             }
             bit_count = response.length();
             for (int i = 0; i < response.length(); i++)
@@ -377,30 +388,35 @@ void loop()
                     Serial.println("External Power Supply is turned off for " + String(i) + " switch at " + String(input_switches[i]));
                 }
             }
+            digitalWrite(LED, HIGH);
         }
         else
         {
             Serial.println("[ERROR] HTTP code: " + String(global_http_code));
-            if(global_http_code < 0){
+            if (global_http_code < 0)
+            {
                 // network issue
                 Serial.println("[HTTPError]: " + String(global_http_code));
             }
-            else{
+            else
+            {
                 for (int i = 0; i < response.length(); i++)
                 {
                     // make all digital pins low if there is any error on the server side
                     digitalWrite(switches[i], LOW);
                 }
                 // turn on the internal led if there is any error on the server side
-                digitalWrite(LED_BUILTIN, LOW);
+                digitalWrite(LED, LOW);
             }
         }
     }
-    else if(WiFi.status() == WL_WRONG_PASSWORD){
+    else if (WiFi.status() == WL_WRONG_PASSWORD)
+    {
         wm.resetSettings();
         ESP.restart();
     }
-    else{
+    else
+    {
         Serial.println("Disconnected from wifi");
     }
     delay(REQUEST_DELAY);
