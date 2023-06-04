@@ -15,7 +15,7 @@ String api_finger_print = "-1";
 bool register_mac_id = false;
 int global_http_code = 0;
 
-String make_get_request(std::unique_ptr<BearSSL::WiFiClientSecure> &client, String url, String parameters)
+String makeGetRequest(std::unique_ptr<BearSSL::WiFiClientSecure> &client, String url, String parameters)
 {
     Serial.print("[HTTPS] GET Request begin...\n");
 
@@ -46,7 +46,7 @@ String make_get_request(std::unique_ptr<BearSSL::WiFiClientSecure> &client, Stri
     return response;
 }
 
-String make_post_request(std::unique_ptr<BearSSL::WiFiClientSecure> &client, String url, String payload)
+String makePostRequest(std::unique_ptr<BearSSL::WiFiClientSecure> &client, String url, String payload)
 {
 
     Serial.print("[HTTPS] POST Request begin...\n");
@@ -80,7 +80,7 @@ String make_post_request(std::unique_ptr<BearSSL::WiFiClientSecure> &client, Str
     return response;
 }
 
-String fetch_finger_print(std::unique_ptr<BearSSL::WiFiClientSecure> &client, String url)
+String fetchFingerPrints(std::unique_ptr<BearSSL::WiFiClientSecure> &client, String url)
 {
     client->setInsecure();
     HTTPClient https;
@@ -178,7 +178,7 @@ void set_api_finger_print(std::unique_ptr<BearSSL::WiFiClientSecure> &http_clien
     }
     if (!register_mac_id)
     {
-        String finger_print_fetched = fetch_finger_print(http_client, cloud_url + device_id + "?fetch=finger_print");
+        String finger_print_fetched = fetchFingerPrints(http_client, cloud_url + device_id + "?fetch=finger_print");
         if (finger_print_fetched == "-1")
         {
             http_client->setInsecure();
@@ -190,7 +190,7 @@ void set_api_finger_print(std::unique_ptr<BearSSL::WiFiClientSecure> &http_clien
         }
         Serial.println("finger print fetched = " + finger_print_fetched);
         Serial.println("ESP8266 MAC Address : " + WiFi.macAddress());
-        String post_responce = make_post_request(http_client, cloud_url + device_id, WiFi.macAddress());
+        String post_responce = makePostRequest(http_client, cloud_url + device_id, WiFi.macAddress());
         register_mac_id = true;
     }
 }
@@ -220,7 +220,7 @@ void loop()
         // cloud URL finger print
         set_api_finger_print(http_client);
 
-        String response = make_get_request(http_client, cloud_url, parameters);
+        String response = makeGetRequest(http_client, cloud_url, parameters);
 
         if (global_http_code == 200 || global_http_code == 201)
         {

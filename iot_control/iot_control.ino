@@ -2,7 +2,13 @@
 #include <cstring>
 #include <WiFiManager.h>
 #include <ESP8266WiFi.h>
+#include <ArduinoWebsockets.h>
 #include <ESP8266HTTPClient.h>
+
+const char *websockets_connection_string = "wss://teraiot.in/ws"; // Enter server adress
+
+String teraiot_ssl_fingerprint = "";
+String api_ssl_finger_print = "";
 
 // GPIO Pins for relay trigger
 #define SW1 D1
@@ -23,7 +29,7 @@
 #define DEVICE_ID "800"
 #define SWITCH_COUNT 4
 #define RECONNECTION_DELAY 1200
-#define REQUEST_DELAY 200
+#define REQUEST_DELAY 400
 
 const String cloud_url = "https://tfesgx8tv3.execute-api.us-east-2.amazonaws.com/Production/control/";
 const String device_id = DEVICE_ID;
@@ -35,13 +41,14 @@ uint8_t *external_bits = new uint8_t[SWITCH_COUNT]{HIGH, HIGH, HIGH, HIGH};
 
 const char *default_device_id = device_id.c_str();
 
-String api_finger_print = "-1";
 bool register_mac_id = false;
+bool avaliable_finger_prints = false;
 // id - label - default value - length
 WiFiManager wm; // to configure wifi from 192.168.4.1 by default
-// Indicates whether ESP has WiFi credentials saved from previous session
 int global_http_code = 0;
 unsigned int bit_count = 0;
+
+websockets::WebsocketsClient websocket_client;
 
 String bits_array_to_string(uint8_t *array, uint8_t size)
 {
@@ -53,13 +60,13 @@ String bits_array_to_string(uint8_t *array, uint8_t size)
     return bits_string;
 }
 
-String make_get_request(std::unique_ptr<BearSSL::WiFiClientSecure> &client, String url, String parameters)
+String makeGetRequest(std::unique_ptr<BearSSL::WiFiClientSecure> &http_client, String url, String parameters)
 {
-    Serial.print("[HTTPS] GET Request begin...\n");
+    // Serial.print("[HTTPS] GET Request begin...\n");
 
     HTTPClient https;
     String response;
-    if (https.begin(*client, url + parameters))
+    if (https.begin(*http_client, url + parameters))
     {
         int httpCode = https.GET();
         global_http_code = httpCode;
@@ -80,20 +87,17 @@ String make_get_request(std::unique_ptr<BearSSL::WiFiClientSecure> &client, Stri
         response = "[HTTPS] GET Request failed";
     }
     https.end();
-    Serial.print("[HTTPS] GET Request Ends...\n");
+    // Serial.print("[HTTPS] GET Request Ends...\n");
     return response;
 }
 
-String make_post_request(std::unique_ptr<BearSSL::WiFiClientSecure> &client, String url, String payload)
+String makePostRequest(std::unique_ptr<BearSSL::WiFiClientSecure> &http_client, String url, String payload)
 {
-
     Serial.print("[HTTPS] POST Request begin...\n");
-    // Or, if you happy to ignore the SSL certificate, then use the following line instead:
-    // client->setInsecure();
 
     HTTPClient https;
     String response;
-    if (https.begin(*client, url))
+    if (https.begin(*http_client, url))
     {
         int httpCode = https.POST(payload);
         global_http_code = httpCode;
@@ -118,12 +122,12 @@ String make_post_request(std::unique_ptr<BearSSL::WiFiClientSecure> &client, Str
     return response;
 }
 
-String fetch_finger_print(std::unique_ptr<BearSSL::WiFiClientSecure> &client, String url)
+String fetchFingerPrints(std::unique_ptr<BearSSL::WiFiClientSecure> &http_client, String url)
 {
-    client->setInsecure();
+    http_client->setInsecure();
     HTTPClient https;
     String response;
-    if (https.begin(*client, url))
+    if (https.begin(*http_client, url))
     {
         int httpCode = https.GET();
         global_http_code = httpCode;
@@ -153,6 +157,99 @@ IRAM_ATTR void read_external_bits()
     {
         external_bits[i] = digitalRead(input_switches[i]);
     }
+}
+
+void onMessageCallback(websockets::WebsocketsMessage message)
+{
+    Serial.print("Got Message: ");
+    Serial.println(message.data());
+}
+
+void onEventsCallback(websockets::WebsocketsEvent event, String data)
+{
+    if (event == websockets::WebsocketsEvent::ConnectionOpened)
+    {
+        Serial.println("Connnection Opened");
+    }
+    else if (event == websockets::WebsocketsEvent::ConnectionClosed)
+    {
+        Serial.println("Connnection Closed");
+    }
+    else if (event == websockets::WebsocketsEvent::GotPing)
+    {
+        Serial.println("Got a Ping!");
+    }
+    else if (event == websockets::WebsocketsEvent::GotPong)
+    {
+        Serial.println("Got a Pong!");
+    }
+}
+
+void webSocketSetup()
+{
+    // run callback when messages are received
+    websocket_client.onMessage(onMessageCallback);
+
+    // run callback when events are occuring
+    websocket_client.onEvent(onEventsCallback);
+
+    // Before connecting, set the ssl fingerprint of the server
+    if (teraiot_ssl_fingerprint != "")
+    {
+        websocket_client.setFingerprint(teraiot_ssl_fingerprint.c_str());
+    }
+
+    // Connect to server
+    websocket_client.connect(websockets_connection_string);
+
+    // Send a message
+    websocket_client.send("Hello Server");
+
+    // Send a ping
+    websocket_client.ping();
+
+    return;
+}
+
+bool fetchFingerPrints()
+{
+
+    Serial.println("Fetching certificates");
+
+    std::unique_ptr<BearSSL::WiFiClientSecure> http_client(new BearSSL::WiFiClientSecure);
+
+    String finger_print_url = cloud_url + "0000" + "?fetch=finger_print";
+
+    String fingerprints = fetchFingerPrints(http_client, finger_print_url);
+
+    if (fingerprints == "-1")
+    {
+        Serial.println("Failed to fetch certificates");
+        return false;
+    }
+
+    String finger_print_1, finger_print_2;
+
+    bool breakFlag = false;
+
+    // iterate over the fingerprints string
+    for (int i = 0; i < fingerprints.length(); i++)
+    {
+        if (fingerprints[i] == '|')
+        {
+            breakFlag = true;
+            continue;
+        }
+        if (!breakFlag)
+        {
+            api_ssl_finger_print += fingerprints[i];
+        }
+        else
+        {
+            teraiot_ssl_fingerprint += fingerprints[i];
+        }
+    }
+    return true;
 }
 
 void setup()
@@ -207,6 +304,14 @@ void setup()
             {
                 Serial.print("Connected to router with IP: ");
                 Serial.println(WiFi.localIP());
+
+                webSocketSetup();
+
+                avaliable_finger_prints = fetchFingerPrints();
+                if (avaliable_finger_prints)
+                {
+                    // webSocketSetup();
+                }
                 return;
             }
             if (wiFiStatus == WL_WRONG_PASSWORD)
@@ -269,6 +374,12 @@ void setup()
         // if you get here you have connected to the WiFi
         Serial.println("connected to you local WiFi :");
 
+        avaliable_finger_prints = fetchFingerPrints();
+        if (avaliable_finger_prints)
+        {
+            webSocketSetup();
+        }
+
         // Set time via NTP, as required for x.509 validation
         // configTime(3 * 3600, 0, "pool.ntp.org", "time.nist.gov");
 
@@ -298,8 +409,7 @@ void loop()
         // client->setFingerprint(fingerprint);
         // Or, if you happy to ignore the SSL certificate, then use the following line instead:
         // client->setInsecure();
-
-        HTTPClient https;
+        // HTTPClient https;
         String parameters;
         if (bit_count == 0)
         {
@@ -312,36 +422,35 @@ void loop()
         }
 
         std::unique_ptr<BearSSL::WiFiClientSecure> http_client(new BearSSL::WiFiClientSecure);
-        // http_client->setTrustAnchors(&cert);
 
-        if (api_finger_print == "-1")
+        if (!avaliable_finger_prints)
         {
             http_client->setInsecure();
         }
         else
         {
-            http_client->setFingerprint(api_finger_print.c_str());
+            http_client->setFingerprint(api_ssl_finger_print.c_str());
         }
 
         if (!register_mac_id)
         {
-            String finger_print_fetched = fetch_finger_print(http_client, cloud_url + device_id + "?fetch=finger_print");
-            if (finger_print_fetched == "-1")
-            {
-                http_client->setInsecure();
-            }
-            else
-            {
-                http_client->setFingerprint(finger_print_fetched.c_str());
-                api_finger_print = finger_print_fetched;
-            }
-            Serial.println("finger print fetched = " + finger_print_fetched);
+            Serial.println("finger prints fetched => " + api_ssl_finger_print + "|" + teraiot_ssl_fingerprint);
             Serial.println("ESP8266 MAC Address : " + WiFi.macAddress());
-            String post_responce = make_post_request(http_client, cloud_url + device_id, WiFi.macAddress() + "|" + WiFi.SSID());
+
+            String post_responce = makePostRequest(http_client, cloud_url + device_id, WiFi.macAddress() + "|" + WiFi.SSID());
             register_mac_id = true;
         }
 
-        String response = make_get_request(http_client, cloud_url, parameters);
+        while(Serial.available() > 0)
+        {
+            String command = Serial.readString();
+            Serial.println(command);
+            websocket_client.send(command);
+        }
+        websocket_client.send("greeeting from esp8266");
+        websocket_client.poll();
+
+        String response = makeGetRequest(http_client, cloud_url, parameters);
         if (global_http_code == 200 || global_http_code == 201)
         {
 
@@ -385,7 +494,7 @@ void loop()
                 }
                 else
                 {
-                    Serial.println("External Power Supply is turned off for " + String(i) + " switch at " + String(input_switches[i]));
+                    // Serial.println("External Power Supply is turned off for " + String(i) + " switch at " + String(input_switches[i]));
                 }
             }
             digitalWrite(LED, HIGH);
