@@ -305,12 +305,10 @@ void setup()
                 Serial.print("Connected to router with IP: ");
                 Serial.println(WiFi.localIP());
 
-                webSocketSetup();
-
                 avaliable_finger_prints = fetchFingerPrints();
                 if (avaliable_finger_prints)
                 {
-                    // webSocketSetup();
+                    webSocketSetup();
                 }
                 return;
             }
@@ -440,15 +438,8 @@ void loop()
             String post_responce = makePostRequest(http_client, cloud_url + device_id, WiFi.macAddress() + "|" + WiFi.SSID());
             register_mac_id = true;
         }
-
-        while(Serial.available() > 0)
-        {
-            String command = Serial.readString();
-            Serial.println(command);
-            websocket_client.send(command);
-        }
-        websocket_client.send("greeeting from esp8266");
-        websocket_client.poll();
+        // websocket_client.send("greeeting from esp8266");
+        // websocket_client.poll();
 
         String response = makeGetRequest(http_client, cloud_url, parameters);
         if (global_http_code == 200 || global_http_code == 201)
@@ -529,4 +520,22 @@ void loop()
         Serial.println("Disconnected from wifi");
     }
     delay(REQUEST_DELAY);
+}
+
+void serialEvent() {
+    Serial.println("serial event");
+    while(Serial.available()) {
+        String command = Serial.readStringUntil('\n');
+        Serial.println(command);
+
+        if(command.indexOf(DEVICE_ID) >= 0){
+            websocket_client.send(command);
+        }
+        else{
+            Serial.println("invalid command");
+        }
+    }
+    Serial.flush();
+    Serial.end();
+    Serial.begin(115200);
 }
