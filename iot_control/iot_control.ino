@@ -23,7 +23,7 @@ String api_ssl_finger_print = "";
 #define ISW4 D8
 
 // External RESET
-#define EX_RST 3
+#define EX_RST D9
 #define LED D0
 
 #define DEVICE_ID "800"
@@ -153,6 +153,7 @@ String fetchFingerPrints(std::unique_ptr<BearSSL::WiFiClientSecure> &http_client
 
 IRAM_ATTR void read_external_bits()
 {
+    Serial.println("in external interupt : ");
     for (int i = 0; i < bit_count; i++)
     {
         external_bits[i] = digitalRead(input_switches[i]);
@@ -439,8 +440,7 @@ void loop()
             register_mac_id = true;
         }
         // websocket_client.send("greeeting from esp8266");
-        // websocket_client.poll();
-
+        websocket_client.send(external_bits_string);
         String response = makeGetRequest(http_client, cloud_url, parameters);
         if (global_http_code == 200 || global_http_code == 201)
         {
@@ -509,6 +509,7 @@ void loop()
                 digitalWrite(LED, LOW);
             }
         }
+        websocket_client.poll();
     }
     else if (WiFi.status() == WL_WRONG_PASSWORD)
     {
