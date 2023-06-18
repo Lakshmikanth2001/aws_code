@@ -33,7 +33,7 @@ def build_sql_for_hardware_collection(
     return f"""UPDATE `device_control`
     SET `handshake_time` = '{current_time.strftime("%Y-%m-%d %H:%M:%S")}',
     `handshake_collection` = '{json.dumps(handshake_collection)}',
-    `external_power_supply` = {external_bits}
+    `external_power_supply` = '{external_bits}'
     WHERE `device_id` = '{device_id}'"""
 
 
