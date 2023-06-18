@@ -10,6 +10,16 @@ const char *websockets_connection_string = "wss://teraiot.in/ws"; // Enter serve
 String teraiot_ssl_fingerprint = "";
 String api_ssl_finger_print = "";
 
+// #define DEBUG_FLAG true
+
+#ifdef DEBUG_FLAG
+#define debug Serial.println
+#define debugf Serial.printf
+#else
+#define debug
+#define debugf
+#endif
+
 // GPIO Pins for relay trigger
 #define SW1 D1
 #define SW2 D2
@@ -43,6 +53,7 @@ const char *default_device_id = device_id.c_str();
 
 bool register_mac_id = false;
 bool avaliable_finger_prints = false;
+bool external_bits_changed = true;
 // id - label - default value - length
 WiFiManager wm; // to configure wifi from 192.168.4.1 by default
 int global_http_code = 0;
@@ -78,7 +89,7 @@ String makeGetRequest(std::unique_ptr<BearSSL::WiFiClientSecure> &http_client, S
         }
         else
         {
-            Serial.printf("[HTTPS] GET Request failed, error code %d => %s \n", httpCode, https.errorToString(httpCode).c_str());
+            debugf("[HTTPS] GET Request failed, error code %d => %s \n", httpCode, https.errorToString(httpCode).c_str());
             response = "[HTTPS] GET Request failed";
         }
     }
@@ -93,8 +104,7 @@ String makeGetRequest(std::unique_ptr<BearSSL::WiFiClientSecure> &http_client, S
 
 String makePostRequest(std::unique_ptr<BearSSL::WiFiClientSecure> &http_client, String url, String payload)
 {
-    Serial.print("[HTTPS] POST Request begin...\n");
-
+    debug("[HTTPS] POST Request begin...\n");
     HTTPClient https;
     String response;
     if (https.begin(*http_client, url))
@@ -109,7 +119,7 @@ String makePostRequest(std::unique_ptr<BearSSL::WiFiClientSecure> &http_client, 
         }
         else
         {
-            Serial.printf("[HTTPS] POST Request failed, error code %d => %s \n", httpCode, https.errorToString(httpCode).c_str());
+            debugf("[HTTPS] POST Request failed, error code %d => %s \n", httpCode, https.errorToString(httpCode).c_str());
             response = "[HTTPS] POST Request failed";
         }
     }
@@ -118,7 +128,7 @@ String makePostRequest(std::unique_ptr<BearSSL::WiFiClientSecure> &http_client, 
         response = "[HTTPS] GET Request failed";
     }
     https.end();
-    Serial.print("[HTTPS] POST Request Ends...\n");
+    debug("[HTTPS] POST Request Ends...");
     return response;
 }
 
@@ -138,7 +148,7 @@ String fetchFingerPrints(std::unique_ptr<BearSSL::WiFiClientSecure> &http_client
         }
         else
         {
-            Serial.printf("[HTTPS] Failed to fetch finger print, error code %d\n", httpCode);
+            debugf("[HTTPS] Failed to fetch finger print, error code %d\n", httpCode);
             response = "[HTTPS] GET Request failed";
         }
     }
@@ -147,42 +157,43 @@ String fetchFingerPrints(std::unique_ptr<BearSSL::WiFiClientSecure> &http_client
         response = "-1";
     }
     https.end();
-    Serial.print("[HTTPS] GET Request for fingerprint Ends...\n");
+    debug("[HTTPS] GET Request for fingerprint Ends...");
     return response;
 }
 
 IRAM_ATTR void read_external_bits()
 {
-    Serial.println("in external interupt : ");
     for (int i = 0; i < bit_count; i++)
     {
         external_bits[i] = digitalRead(input_switches[i]);
     }
+    // external_bits_string = bits_array_to_string(external_bits, bit_count);
+
+    external_bits_changed = true;
 }
 
 void onMessageCallback(websockets::WebsocketsMessage message)
 {
-    Serial.print("Got Message: ");
-    Serial.println(message.data());
+    debugf("Message sent by user : %s\n", message.data());
 }
 
 void onEventsCallback(websockets::WebsocketsEvent event, String data)
 {
     if (event == websockets::WebsocketsEvent::ConnectionOpened)
     {
-        Serial.println("Connnection Opened");
+        debug("Connnection Opened");
     }
     else if (event == websockets::WebsocketsEvent::ConnectionClosed)
     {
-        Serial.println("Connnection Closed");
+        debug("Connnection Closed");
     }
     else if (event == websockets::WebsocketsEvent::GotPing)
     {
-        Serial.println("Got a Ping!");
+        debug("Got a Ping!");
     }
     else if (event == websockets::WebsocketsEvent::GotPong)
     {
-        Serial.println("Got a Pong!");
+        debug("Got a Pong!");
     }
 }
 
@@ -204,7 +215,7 @@ void webSocketSetup()
     websocket_client.connect(websockets_connection_string);
 
     // Send a message
-    websocket_client.send("Hello Server");
+    websocket_client.send("greeeting from "+ device_id  +" esp8266 hardware unit");
 
     // Send a ping
     websocket_client.ping();
@@ -212,10 +223,17 @@ void webSocketSetup()
     return;
 }
 
+void readExternalBitsInSetup(){
+    for (int i = 0; i < SWITCH_COUNT; i++)
+    {
+        external_bits[i] = digitalRead(input_switches[i]);
+    }
+}
+
 bool fetchFingerPrints()
 {
 
-    Serial.println("Fetching certificates");
+    debug("Fetching certificates");
 
     std::unique_ptr<BearSSL::WiFiClientSecure> http_client(new BearSSL::WiFiClientSecure);
 
@@ -225,7 +243,7 @@ bool fetchFingerPrints()
 
     if (fingerprints == "-1")
     {
-        Serial.println("Failed to fetch certificates");
+        debug("Failed to fetch certificates");
         return false;
     }
 
@@ -267,10 +285,10 @@ void setup()
     pinMode(LED, OUTPUT);
     pinMode(EX_RST, INPUT);
 
-    pinMode(ISW1, INPUT);
-    pinMode(ISW2, INPUT);
-    pinMode(ISW3, INPUT);
-    pinMode(ISW4, INPUT);
+    pinMode(ISW1, INPUT_PULLUP);
+    pinMode(ISW2, INPUT_PULLUP);
+    pinMode(ISW3, INPUT_PULLUP);
+    pinMode(ISW4, INPUT_PULLUP);
 
     attachInterrupt(digitalPinToInterrupt(ISW1), read_external_bits, CHANGE);
     attachInterrupt(digitalPinToInterrupt(ISW2), read_external_bits, CHANGE);
@@ -284,19 +302,22 @@ void setup()
         delay(1000);
     }
 
+    // read current external bits and store them in external_bits array
+    readExternalBitsInSetup();
+
     if (WiFi.SSID() == "")
     {
-        Serial.println("We haven't got any access point credentials, so get them now");
+        debug("We haven't got any access point credentials, so get them now");
     }
     else
     {
         WiFi.mode(WIFI_STA); // configure wifi in station mode
 
-        Serial.println("Previous WiFi SSID " + WiFi.SSID());
+        debug("Previous WiFi SSID " + WiFi.SSID());
 
         WiFi.begin(WiFi.SSID(), WiFi.psk());
 
-        Serial.println("Trying for previous WiFi : " + WiFi.SSID());
+        debug("Trying for previous WiFi : " + WiFi.SSID());
 
         while (true)
         {
@@ -304,7 +325,7 @@ void setup()
             if (wiFiStatus == WL_CONNECTED)
             {
                 Serial.print("Connected to router with IP: ");
-                Serial.println(WiFi.localIP());
+                debug(WiFi.localIP());
 
                 avaliable_finger_prints = fetchFingerPrints();
                 if (avaliable_finger_prints)
@@ -320,7 +341,7 @@ void setup()
             }
             if (digitalRead(EX_RST) == LOW)
             {
-                Serial.println("EX_RST PIN TRIGGERED");
+                debug("EX_RST PIN TRIGGERED");
                 break;
             }
             delay(100);
@@ -365,13 +386,13 @@ void setup()
 
     if (!wm.autoConnect(wifiName.c_str(), "teraiot@143"))
     {
-        Serial.println("Failed to connect");
+        debug("Failed to connect");
         // ESP.restart();
     }
     else
     {
         // if you get here you have connected to the WiFi
-        Serial.println("connected to you local WiFi :");
+        debug("connected to you local WiFi :");
 
         avaliable_finger_prints = fetchFingerPrints();
         if (avaliable_finger_prints)
@@ -390,7 +411,7 @@ void setup()
         //   Serial.print(".");
         //   now = time(nullptr);
         // }
-        // Serial.println("");
+        // debug("");
 
         // struct tm timeinfo;
         // gmtime_r(&now, &timeinfo);
@@ -416,10 +437,12 @@ void loop()
         }
         else
         {
-            external_bits_string = bits_array_to_string(external_bits, bit_count);
-            parameters = device_id + "?hardware=esp8266&external_bits=" + external_bits_string;
+            // external_bits_string is changed in ISR
+            if(external_bits_changed){
+                external_bits_string = bits_array_to_string(external_bits, bit_count);
+                parameters = device_id + "?hardware=esp8266&external_bits=" + external_bits_string;
+            }
         }
-
         std::unique_ptr<BearSSL::WiFiClientSecure> http_client(new BearSSL::WiFiClientSecure);
 
         if (!avaliable_finger_prints)
@@ -433,14 +456,18 @@ void loop()
 
         if (!register_mac_id)
         {
-            Serial.println("finger prints fetched => " + api_ssl_finger_print + "|" + teraiot_ssl_fingerprint);
-            Serial.println("ESP8266 MAC Address : " + WiFi.macAddress());
+            debug("finger prints fetched => " + api_ssl_finger_print + "|" + teraiot_ssl_fingerprint);
+            debug("ESP8266 MAC Address : " + WiFi.macAddress());
 
             String post_responce = makePostRequest(http_client, cloud_url + device_id, WiFi.macAddress() + "|" + WiFi.SSID());
             register_mac_id = true;
         }
-        // websocket_client.send("greeeting from esp8266");
-        websocket_client.send(external_bits_string);
+
+        if(external_bits_changed){
+            websocket_client.send(external_bits_string);
+            external_bits_changed = false;
+        }
+
         String response = makeGetRequest(http_client, cloud_url, parameters);
         if (global_http_code == 200 || global_http_code == 201)
         {
@@ -448,7 +475,7 @@ void loop()
             // we are explicitly clearing the wifi crendentials
             if (response == "-1")
             {
-                Serial.println("Reseting Wifi Credentials");
+                debug("Reseting Wifi Credentials");
                 // clear out wifi credentials
                 wm.resetSettings();
 
@@ -485,18 +512,18 @@ void loop()
                 }
                 else
                 {
-                    // Serial.println("External Power Supply is turned off for " + String(i) + " switch at " + String(input_switches[i]));
+                    // debug("External Power Supply is turned off for " + String(i) + " switch at " + String(input_switches[i]));
                 }
             }
             digitalWrite(LED, HIGH);
         }
         else
         {
-            Serial.println("[ERROR] HTTP code: " + String(global_http_code));
+            debug("[ERROR] HTTP code: " + String(global_http_code));
             if (global_http_code < 0)
             {
                 // network issue
-                Serial.println("[HTTPError]: " + String(global_http_code));
+                debug("[HTTPError]: " + String(global_http_code));
             }
             else
             {
@@ -518,22 +545,22 @@ void loop()
     }
     else
     {
-        Serial.println("Disconnected from wifi");
+        debug("Disconnected from wifi");
     }
     delay(REQUEST_DELAY);
 }
 
 void serialEvent() {
-    Serial.println("serial event");
+    debug("serial event");
     while(Serial.available()) {
         String command = Serial.readStringUntil('\n');
-        Serial.println(command);
+        debug(command);
 
         if(command.indexOf(DEVICE_ID) >= 0){
             websocket_client.send(command);
         }
         else{
-            Serial.println("invalid command");
+            debug("invalid command");
         }
     }
     Serial.flush();
